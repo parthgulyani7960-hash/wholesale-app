@@ -1,0 +1,7 @@
+{
+  "name": "Hind General Store",
+  "description": "A modern, digital storefront for Hind General Store, featuring a dynamic product catalog, shopping cart, manual payment approval system, and a comprehensive admin dashboard for store and order management.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}

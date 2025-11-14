@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hind General Store</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'sans': ['Poppins', 'sans-serif'],
+                        'serif': ['Playfair Display', 'serif'],
+                    },
+                    colors: {
+                        'primary': '#004d40', // Deep Teal/Green
+                        'secondary': '#fdfaf6', // Off-white
+                        'accent': '#ffc107', // Amber/Yellow
+                        'light': '#f5f5f5',
+                    },
+                    backgroundImage: {
+                        'hero-pattern': "url('https://images.unsplash.com/photo-1588964893710-535b62512f43?q=80&w=1920&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&blur=2&grayscale')",
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    /* Global button enhancement for better interactivity */
+    button, .button {
+        transition: all 0.2s ease-in-out;
+    }
+    button:active, .button:active {
+        transform: scale(0.95);
+        filter: brightness(0.95);
+    }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "@babel/runtime/": "https://unpkg.com/@babel/runtime@7.24.7/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0",
+    "react-i18next": "https://unpkg.com/react-i18next@14.1.2/dist/es/index.js",
+    "i18next": "https://unpkg.com/i18next@23.11.5/dist/esm/i18next.js",
+    "i18next-browser-languagedetector": "https://unpkg.com/i18next-browser-languagedetector@8.0.0/dist/esm/i18nextBrowserLanguageDetector.js",
+    "jspdf": "https://unpkg.com/jspdf@2.5.1/dist/jspdf.es.min.js",
+    "html2canvas": "https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.esm.js",
+    "html-parse-stringify": "https://unpkg.com/html-parse-stringify@3.0.1/dist/html-parse-stringify.module.js",
+    "fflate": "https://unpkg.com/fflate@0.8.2/esm/index.js"
+  }
+}
+</script>
+</head>
+<body class="bg-light text-primary font-sans antialiased">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>
