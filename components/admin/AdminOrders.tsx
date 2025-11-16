@@ -34,6 +34,8 @@ const AdminOrders: React.FC<AdminOrdersProps> = ({ orders, updateOrderStatus, ap
 
             // Order ID filter
             if (orderIdFilter && !String(order.id).includes(orderIdFilter)) {
+                return false;
+            }
 
             // Date range filter
             const orderDate = new Date(order.date);
