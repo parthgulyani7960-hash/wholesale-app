@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { UserDetails, Order, PaymentMethod, DeliveryMethod, Coupon } from '../types';
@@ -59,7 +58,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCheckoutSuccess, isFirstO
         return storeInfo.shippingScope === 'nationwide' ? storeInfo.nationwideShippingFee : storeInfo.deliveryFee;
     }, [cartTotal, storeInfo, deliveryMethod]);
 
-    const finalTotal = cartTotal - firstOrderDiscount - couponDiscount + deliveryFeeToApply;
+    const finalTotal = Math.max(0, cartTotal - firstOrderDiscount - couponDiscount + deliveryFeeToApply);
 
     useEffect(() => {
         if (currentUser) {
@@ -186,6 +185,12 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCheckoutSuccess, isFirstO
         setIsProcessing(true);
         
         if (paymentMethod === 'Pay from Wallet' && currentUser) {
+            // Double check balance just in case
+            if ((currentUser.walletBalance || 0) < finalTotal) {
+                showNotification("Insufficient wallet balance.");
+                setIsProcessing(false);
+                return;
+            }
             const newBalance = (currentUser.walletBalance || 0) - finalTotal;
             await updateUser({ id: currentUser.id, walletBalance: newBalance });
         }
@@ -223,11 +228,11 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCheckoutSuccess, isFirstO
     );
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
             <StepIndicator />
             {step === 1 && (
                  <div className="animate-fade-in-fast space-y-4">
-                    <h3 className="font-semibold text-lg">{t('yourDetails')}</h3>
+                    <h3 className="font-serif font-bold text-xl text-primary">{t('yourDetails')}</h3>
                     <div>
                         <label htmlFor="name" className="block text-sm font-medium text-gray-700">Name</label>
                         <input type="text" id="name" name="name" value={userDetails.name} onChange={handleUserChange} className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-accent focus:border-accent" required />
@@ -265,47 +270,103 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCheckoutSuccess, isFirstO
                 </div>
             )}
             {step === 2 && (
-                <div className="animate-fade-in-fast space-y-4">
-                     <h3 className="font-semibold text-lg">{t('deliveryAndPayment')}</h3>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Delivery Method</label>
-                         <div className="mt-2 flex space-x-4">
-                            <label className="flex items-center"><input type="radio" name="deliveryMethod" value="Home Delivery" checked={deliveryMethod === 'Home Delivery'} onChange={() => setDeliveryMethod('Home Delivery')} className="focus:ring-accent h-4 w-4 text-accent border-gray-300" /><span className="ml-2 text-sm text-gray-600">Home Delivery</span></label>
-                            <label className="flex items-center"><input type="radio" name="deliveryMethod" value="In-Store Pickup" checked={deliveryMethod === 'In-Store Pickup'} onChange={() => setDeliveryMethod('In-Store Pickup')} className="focus:ring-accent h-4 w-4 text-accent border-gray-300" /><span className="ml-2 text-sm text-gray-600">In-Store Pickup</span></label>
+                <div className="animate-fade-in-fast space-y-6">
+                     <h3 className="font-serif font-bold text-xl text-primary">{t('deliveryAndPayment')}</h3>
+                     
+                    {/* Delivery Method Section */}
+                    <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                        <label className="block text-sm font-bold text-gray-700 mb-3">Delivery Method</label>
+                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <label className={`relative flex items-center p-4 cursor-pointer rounded-lg border transition-all ${deliveryMethod === 'Home Delivery' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-gray-200 hover:border-gray-300'}`}>
+                                <input type="radio" name="deliveryMethod" value="Home Delivery" checked={deliveryMethod === 'Home Delivery'} onChange={() => setDeliveryMethod('Home Delivery')} className="sr-only" />
+                                <span className={`flex-1 text-sm font-medium ${deliveryMethod === 'Home Delivery' ? 'text-primary' : 'text-gray-900'}`}>Home Delivery</span>
+                                {deliveryMethod === 'Home Delivery' && <svg className="h-5 w-5 text-primary" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}
+                            </label>
+                            <label className={`relative flex items-center p-4 cursor-pointer rounded-lg border transition-all ${deliveryMethod === 'In-Store Pickup' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-gray-200 hover:border-gray-300'}`}>
+                                <input type="radio" name="deliveryMethod" value="In-Store Pickup" checked={deliveryMethod === 'In-Store Pickup'} onChange={() => setDeliveryMethod('In-Store Pickup')} className="sr-only" />
+                                <span className={`flex-1 text-sm font-medium ${deliveryMethod === 'In-Store Pickup' ? 'text-primary' : 'text-gray-900'}`}>In-Store Pickup</span>
+                                {deliveryMethod === 'In-Store Pickup' && <svg className="h-5 w-5 text-primary" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>}
+                            </label>
                         </div>
                     </div>
-                    {deliveryMethod === 'Home Delivery' && <div className="p-4 bg-gray-50 rounded-lg border"><label className="block text-sm font-medium text-gray-700 mb-2">Select Delivery Slot</label><DeliveryScheduler onSelectSlot={setDeliverySlot} /></div>}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
-                        <div className="mt-1 space-y-2">
-                            {currentUser && currentUser.walletBalance && currentUser.walletBalance >= finalTotal && (
-                                <label className={`p-3 border rounded-md flex items-center cursor-pointer transition-all duration-200 ${paymentMethod === 'Pay from Wallet' ? 'bg-accent/10 border-accent shadow-sm' : 'border-gray-300 hover:border-accent/50'}`}>
-                                    <input type="radio" name="paymentMethod" value="Pay from Wallet" checked={paymentMethod === 'Pay from Wallet'} onChange={() => setPaymentMethod('Pay from Wallet')} className="focus:ring-accent h-4 w-4 text-accent border-gray-300" />
-                                    <span className="ml-3 text-sm font-medium text-gray-800">Pay from Wallet (Balance: ₹{currentUser.walletBalance.toFixed(2)})</span>
+                    
+                    {deliveryMethod === 'Home Delivery' && (
+                         <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Select Delivery Slot</label>
+                            <DeliveryScheduler onSelectSlot={setDeliverySlot} />
+                        </div>
+                    )}
+
+                    <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                        <label className="block text-sm font-bold text-gray-700 mb-3">Payment Method</label>
+                        <div className="space-y-3">
+                            {/* Pay from Wallet Option */}
+                            {currentUser && currentUser.hasWallet && (currentUser.walletBalance || 0) >= finalTotal && (
+                                <label className={`relative flex items-start p-4 cursor-pointer rounded-lg border transition-all ${paymentMethod === 'Pay from Wallet' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-gray-200 hover:border-gray-300'}`}>
+                                    <div className="flex items-center h-5">
+                                        <input type="radio" name="paymentMethod" value="Pay from Wallet" checked={paymentMethod === 'Pay from Wallet'} onChange={() => setPaymentMethod('Pay from Wallet')} className="h-4 w-4 text-primary border-gray-300 focus:ring-primary" />
+                                    </div>
+                                    <div className="ml-3 text-sm">
+                                        <span className="block font-medium text-gray-900">Pay from Wallet</span>
+                                        <span className="block text-gray-500">Available Balance: <span className="font-semibold text-green-600">₹{(currentUser.walletBalance || 0).toFixed(2)}</span></span>
+                                    </div>
                                 </label>
                             )}
-                            <label className={`p-3 border rounded-md flex items-center cursor-pointer transition-all duration-200 ${paymentMethod === 'Manual Transfer' ? 'bg-accent/10 border-accent shadow-sm' : 'border-gray-300 hover:border-accent/50'}`}><input type="radio" name="paymentMethod" value="Manual Transfer" checked={paymentMethod === 'Manual Transfer'} onChange={() => setPaymentMethod('Manual Transfer')} className="focus:ring-accent h-4 w-4 text-accent border-gray-300" /><span className="ml-3 text-sm font-medium text-gray-800">Manual Transfer (UPI/Bank)</span></label>
-                            <label className={`p-3 border rounded-md flex items-center cursor-pointer transition-all duration-200 ${paymentMethod === 'Cash on Delivery' ? 'bg-accent/10 border-accent shadow-sm' : 'border-gray-300 hover:border-accent/50'}`}><input type="radio" name="paymentMethod" value="Cash on Delivery" checked={paymentMethod === 'Cash on Delivery'} onChange={() => setPaymentMethod('Cash on Delivery')} className="focus:ring-accent h-4 w-4 text-accent border-gray-300" /><span className="ml-3 text-sm font-medium text-gray-800">Cash on Delivery</span></label>
-                            {currentUser?.hasCredit && <label className={`p-3 border rounded-md flex items-center cursor-pointer transition-all duration-200 ${paymentMethod === 'Pay on Khata' ? 'bg-accent/10 border-accent shadow-sm' : 'border-gray-300 hover:border-accent/50'}`}><input type="radio" name="paymentMethod" value="Pay on Khata" checked={paymentMethod === 'Pay on Khata'} onChange={() => setPaymentMethod('Pay on Khata')} className="focus:ring-accent h-4 w-4 text-accent border-gray-300" /><span className="ml-3 text-sm font-medium text-gray-800">Pay on Khata (Credit)</span></label>}
+                            
+                             {/* Manual Transfer Option */}
+                            <label className={`relative flex items-start p-4 cursor-pointer rounded-lg border transition-all ${paymentMethod === 'Manual Transfer' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-gray-200 hover:border-gray-300'}`}>
+                                <div className="flex items-center h-5">
+                                    <input type="radio" name="paymentMethod" value="Manual Transfer" checked={paymentMethod === 'Manual Transfer'} onChange={() => setPaymentMethod('Manual Transfer')} className="h-4 w-4 text-primary border-gray-300 focus:ring-primary" />
+                                </div>
+                                <div className="ml-3 text-sm">
+                                    <span className="block font-medium text-gray-900">Manual Transfer (UPI/Bank)</span>
+                                    <span className="block text-gray-500">Pay via UPI or Bank Transfer and upload screenshot</span>
+                                </div>
+                            </label>
+                            
+                            {/* COD Option */}
+                            <label className={`relative flex items-start p-4 cursor-pointer rounded-lg border transition-all ${paymentMethod === 'Cash on Delivery' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-gray-200 hover:border-gray-300'}`}>
+                                <div className="flex items-center h-5">
+                                    <input type="radio" name="paymentMethod" value="Cash on Delivery" checked={paymentMethod === 'Cash on Delivery'} onChange={() => setPaymentMethod('Cash on Delivery')} className="h-4 w-4 text-primary border-gray-300 focus:ring-primary" />
+                                </div>
+                                <div className="ml-3 text-sm">
+                                    <span className="block font-medium text-gray-900">Cash on Delivery</span>
+                                    <span className="block text-gray-500">Pay when you receive your order</span>
+                                </div>
+                            </label>
+
+                            {/* Khata Option */}
+                            {currentUser?.hasCredit && (
+                                <label className={`relative flex items-start p-4 cursor-pointer rounded-lg border transition-all ${paymentMethod === 'Pay on Khata' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-gray-200 hover:border-gray-300'}`}>
+                                    <div className="flex items-center h-5">
+                                        <input type="radio" name="paymentMethod" value="Pay on Khata" checked={paymentMethod === 'Pay on Khata'} onChange={() => setPaymentMethod('Pay on Khata')} className="h-4 w-4 text-primary border-gray-300 focus:ring-primary" />
+                                    </div>
+                                    <div className="ml-3 text-sm">
+                                        <span className="block font-medium text-gray-900">Pay on Khata (Credit)</span>
+                                        <span className="block text-gray-500">Add to your store credit account</span>
+                                    </div>
+                                </label>
+                            )}
                         </div>
                     </div>
+
                     {paymentMethod === 'Manual Transfer' && (
-                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3 text-sm">
-                            <h4 className="font-bold text-primary">Payment Instructions</h4>
+                        <div className="p-5 bg-blue-50 border border-blue-200 rounded-lg space-y-4 text-sm">
+                            <h4 className="font-bold text-primary text-base">Payment Instructions</h4>
                             <p>Please transfer <strong>₹{finalTotal.toFixed(2)}</strong> to the details below and upload a screenshot.</p>
-                            <div className="flex flex-col md:flex-row gap-4 items-center">
-                                <div className="space-y-1 flex-grow">
-                                    <p><strong>UPI ID:</strong> {paymentDetails.upiId}</p>
-                                    <p><strong>Account Name:</strong> {paymentDetails.accountHolderName}</p>
-                                    <p><strong>Account Number:</strong> {paymentDetails.accountNumber}</p>
-                                    <p><strong>IFSC Code:</strong> {paymentDetails.ifscCode}</p>
+                            <div className="flex flex-col md:flex-row gap-6 items-center bg-white p-4 rounded-lg border border-blue-100">
+                                <div className="space-y-2 flex-grow">
+                                    <p><strong className="text-gray-700">UPI ID:</strong> <span className="font-mono bg-gray-100 px-2 py-0.5 rounded">{paymentDetails.upiId}</span></p>
+                                    <p><strong className="text-gray-700">Account Name:</strong> {paymentDetails.accountHolderName}</p>
+                                    <p><strong className="text-gray-700">Account Number:</strong> <span className="font-mono">{paymentDetails.accountNumber}</span></p>
+                                    <p><strong className="text-gray-700">IFSC Code:</strong> <span className="font-mono">{paymentDetails.ifscCode}</span></p>
                                 </div>
-                                {paymentDetails.qrCodeImage && <img src={paymentDetails.qrCodeImage} alt="UPI QR Code" className="w-24 h-24 border rounded-md" />}
+                                {paymentDetails.qrCodeImage && <img src={paymentDetails.qrCodeImage} alt="UPI QR Code" className="w-32 h-32 border rounded-md shadow-sm" />}
                             </div>
                             <div>
-                                <label htmlFor="screenshot" className="block text-sm font-medium text-gray-700">Upload Screenshot</label>
-                                <input type="file" id="screenshot" name="screenshot" accept="image/*" onChange={handleFileChange} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent/20 file:text-accent hover:file:bg-accent/30" required />
-                                {paymentScreenshot && <img src={paymentScreenshot} alt="Preview" className="mt-2 max-h-32 rounded" />}
+                                <label htmlFor="screenshot" className="block text-sm font-bold text-gray-700 mb-2">Upload Screenshot</label>
+                                <input type="file" id="screenshot" name="screenshot" accept="image/*" onChange={handleFileChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent/20 file:text-accent hover:file:bg-accent/30 cursor-pointer" required />
+                                {paymentScreenshot && <img src={paymentScreenshot} alt="Preview" className="mt-3 max-h-40 rounded-lg shadow-md border" />}
                             </div>
                         </div>
                     )}
@@ -313,18 +374,21 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCheckoutSuccess, isFirstO
             )}
             {step === 3 && (
                 <div className="animate-fade-in-fast space-y-4">
-                    <h3 className="font-semibold text-lg">{t('confirmYourOrder')}</h3>
+                    <h3 className="font-serif font-bold text-xl text-primary">{t('confirmYourOrder')}</h3>
                      <div>
                         <label htmlFor="customerNotes" className="block text-sm font-medium text-gray-700">Order Notes (Optional)</label>
                         <textarea id="customerNotes" value={customerNotes} onChange={(e) => setCustomerNotes(e.target.value)} rows={2} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-accent" placeholder="e.g., Call before delivery, pack vegetables separately..."></textarea>
                     </div>
-                     <div className="bg-gray-50 p-4 rounded-lg border text-sm space-y-2">
-                        <h4 className="font-semibold text-base mb-2">Summary</h4>
-                        <div><strong>Name:</strong> {userDetails.name}</div>
-                        <div><strong>Address:</strong> {userDetails.address}, {userDetails.pincode}</div>
-                        <div><strong>Delivery:</strong> {deliveryMethod} {deliveryMethod === 'Home Delivery' && `(${deliverySlot})`}</div>
-                        <div><strong>Payment:</strong> {paymentMethod}</div>
-                        <div className="border-t pt-2 mt-2 space-y-1">
+                     <div className="bg-gray-50 p-5 rounded-lg border text-sm space-y-3">
+                        <h4 className="font-bold text-base border-b pb-2 mb-2 text-gray-800">Summary</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                             <div><strong>Name:</strong> {userDetails.name}</div>
+                             <div><strong>Address:</strong> {userDetails.address}, {userDetails.pincode}</div>
+                             <div><strong>Delivery:</strong> {deliveryMethod} {deliveryMethod === 'Home Delivery' && `(${deliverySlot})`}</div>
+                             <div><strong>Payment:</strong> {paymentMethod}</div>
+                        </div>
+                        
+                        <div className="border-t pt-3 mt-3 space-y-2">
                             <div className="flex justify-between"><span>Subtotal:</span> <span>₹{cartTotal.toFixed(2)}</span></div>
                             {isFirstOrder && <div className="flex justify-between text-green-600"><span>First Order Discount:</span> <span>- ₹{firstOrderDiscount.toFixed(2)}</span></div>}
                              {appliedCoupon && (
@@ -337,7 +401,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCheckoutSuccess, isFirstO
                                 <span>Delivery Fee:</span>
                                 <span>{deliveryFeeToApply > 0 ? `₹${deliveryFeeToApply.toFixed(2)}` : 'Free'}</span>
                             </div>
-                            <div className="flex justify-between font-bold text-base border-t pt-1 mt-1"><span>Grand Total:</span> <span>₹{finalTotal.toFixed(2)}</span></div>
+                            <div className="flex justify-between font-bold text-lg border-t border-gray-300 pt-2 mt-1 text-primary"><span>Grand Total:</span> <span>₹{finalTotal.toFixed(2)}</span></div>
                         </div>
                         
                         {!appliedCoupon && availableCoupons.length > 0 && (
@@ -345,7 +409,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCheckoutSuccess, isFirstO
                                 <label className="block text-xs font-medium text-gray-700 mb-2">{t('availableCoupons')}</label>
                                 <div className="flex flex-wrap gap-2">
                                     {availableCoupons.map(coupon => (
-                                        <button type="button" key={coupon.code} onClick={() => handleApplyCoupon(coupon)} className="text-xs bg-green-100 text-green-800 font-semibold px-3 py-1.5 rounded-md border border-green-200 hover:bg-green-200">
+                                        <button type="button" key={coupon.code} onClick={() => handleApplyCoupon(coupon)} className="text-xs bg-green-100 text-green-800 font-semibold px-3 py-1.5 rounded-md border border-green-200 hover:bg-green-200 transition-colors">
                                             {coupon.code}
                                         </button>
                                     ))}
@@ -356,18 +420,18 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCheckoutSuccess, isFirstO
                          <div className="pt-2">
                             <label htmlFor="coupon" className="block text-xs font-medium text-gray-700">{t('haveACoupon')}</label>
                             <div className="flex gap-2 mt-1">
-                                <input type="text" id="coupon" value={couponCode} onChange={e => setCouponCode(e.target.value)} placeholder="Enter code" className="w-full px-2 py-1 border border-gray-300 rounded-md shadow-sm text-sm" />
-                                <button type="button" onClick={handleManualCouponApply} className="bg-secondary text-primary font-semibold px-3 py-1 text-xs rounded-md border border-gray-300 hover:bg-gray-200">{t('apply')}</button>
+                                <input type="text" id="coupon" value={couponCode} onChange={e => setCouponCode(e.target.value)} placeholder="Enter code" className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-accent" />
+                                <button type="button" onClick={handleManualCouponApply} className="bg-secondary text-primary font-semibold px-4 py-2 text-xs rounded-md border border-gray-300 hover:bg-gray-200 transition-colors">{t('apply')}</button>
                             </div>
                         </div>
                     </div>
                 </div>
             )}
 
-            <div className="flex justify-between pt-4">
-                {step > 1 && <button type="button" onClick={prevStep} className="bg-gray-200 text-gray-700 px-6 py-2 rounded-md hover:bg-gray-300 transition-colors">{t('back')}</button>}
-                {step < 3 && <button type="button" onClick={nextStep} className="bg-primary text-white px-6 py-2 rounded-md hover:bg-accent hover:text-primary transition-colors ml-auto">{t('next')}</button>}
-                {step === 3 && <button type="submit" className="bg-primary text-white px-6 py-2 rounded-md hover:bg-accent hover:text-primary transition-colors disabled:bg-gray-400" disabled={isProcessing}>
+            <div className="flex justify-between pt-4 border-t">
+                {step > 1 && <button type="button" onClick={prevStep} className="bg-gray-200 text-gray-700 px-6 py-2 rounded-md hover:bg-gray-300 transition-colors font-medium">{t('back')}</button>}
+                {step < 3 && <button type="button" onClick={nextStep} className="bg-primary text-white px-8 py-2 rounded-md hover:bg-accent hover:text-primary transition-colors ml-auto font-medium">{t('next')}</button>}
+                {step === 3 && <button type="submit" className="bg-primary text-white px-8 py-2 rounded-md hover:bg-accent hover:text-primary transition-colors disabled:bg-gray-400 font-bold shadow-md" disabled={isProcessing}>
                     {isProcessing ? t('processing') : t('placeOrder')}
                 </button>}
             </div>

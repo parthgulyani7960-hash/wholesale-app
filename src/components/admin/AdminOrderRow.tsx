@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
-import { Order, OrderStatus } from '../../types';
-import Modal from '../Modal';
-import OrderInvoice from '../OrderInvoice';
+import { Order, OrderStatus } from '../../../types';
+import Modal from '../../../components/Modal';
+import OrderInvoice from '../../../components/OrderInvoice';
 import { createRoot } from 'react-dom/client';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -152,7 +152,7 @@ const AdminOrderRow: React.FC<AdminOrderRowProps> = ({ order, updateOrderStatus,
                             </svg>
                         </button>
                          <button onClick={(e) => handleActionClick(e, handlePrintInvoice)} className="text-gray-500 hover:text-gray-700 p-1" title="Print Invoice">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v3a2 2 0 002-2h6a2 2 0 002-2v-3h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" /></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v3a2 2 0 002 2h6a2 2 0 002-2v-3h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" /></svg>
                         </button>
                     </div>
                 </td>

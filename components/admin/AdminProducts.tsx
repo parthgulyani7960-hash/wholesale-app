@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { Product } from '../../types';
@@ -144,7 +145,7 @@ const AdminProducts: React.FC = () => {
                                                 type="checkbox" 
                                                 className="sr-only peer"
                                                 checked={product.isListed}
-                                                onChange={() => updateProduct({ ...product, isListed: !product.isListed })}
+                                                onChange={(e) => updateProduct({ ...product, isListed: e.target.checked })}
                                             />
                                             <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
                                         </label>

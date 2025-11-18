@@ -43,13 +43,9 @@ const AdminOrderEditModal: React.FC<AdminOrderEditModalProps> = ({ order, isOpen
             const orderUser = users.find(u => u.email === order.user.email);
             const userRole = orderUser?.role || 'retailer';
 
-            // Correctly apply wholesale price even if it is 0
-            let priceAtTimeOfCart;
-            if (userRole === 'wholesaler' && selectedProduct.wholesalePrice !== undefined && selectedProduct.wholesalePrice !== null) {
-                priceAtTimeOfCart = selectedProduct.wholesalePrice;
-            } else {
-                priceAtTimeOfCart = selectedProduct.discountPrice ?? selectedProduct.price;
-            }
+            const priceAtTimeOfCart = userRole === 'wholesaler'
+                ? selectedProduct.wholesalePrice
+                : (selectedProduct.discountPrice ?? selectedProduct.price);
             
             const existingItem = items.find(item => item.id === selectedProduct.id);
             if (existingItem) {

@@ -3,8 +3,7 @@ import React, { useState } from 'react';
 import { Order, OrderStatus } from '../types';
 import Modal from './Modal';
 import OrderInvoice from './OrderInvoice';
-// FIX: Update ReactDOM import to use react-dom/client for React 18 APIs.
-import ReactDOM from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -37,7 +36,6 @@ const AdminOrderRow: React.FC<AdminOrderRowProps> = ({ order, updateOrderStatus,
         action();
     };
 
-    // FIX: Updated to use createRoot API for React 18, replacing deprecated ReactDOM.render.
     const handleDownloadPdf = () => {
         const invoiceElement = document.createElement('div');
         invoiceElement.style.position = 'absolute';
@@ -45,7 +43,7 @@ const AdminOrderRow: React.FC<AdminOrderRowProps> = ({ order, updateOrderStatus,
         invoiceElement.style.width = '800px'; 
         document.body.appendChild(invoiceElement);
 
-        const root = ReactDOM.createRoot(invoiceElement);
+        const root = createRoot(invoiceElement);
         root.render(<OrderInvoice order={order} />);
 
         setTimeout(() => {
@@ -63,7 +61,6 @@ const AdminOrderRow: React.FC<AdminOrderRowProps> = ({ order, updateOrderStatus,
         }, 100);
     };
 
-    // FIX: Updated to use createRoot API for React 18, replacing deprecated ReactDOM.render.
     const handlePrintInvoice = () => {
         const printWindow = window.open('', '_blank');
         if (printWindow) {
@@ -76,7 +73,7 @@ const AdminOrderRow: React.FC<AdminOrderRowProps> = ({ order, updateOrderStatus,
 
             const printRoot = printWindow.document.getElementById('print-root');
             if (printRoot) {
-                const root = ReactDOM.createRoot(printRoot);
+                const root = createRoot(printRoot);
                 root.render(<OrderInvoice order={order} />);
                 setTimeout(() => {
                     printWindow.print();
@@ -160,9 +157,17 @@ const AdminOrderRow: React.FC<AdminOrderRowProps> = ({ order, updateOrderStatus,
                     </div>
                 </td>
             </tr>
-            {order.paymentScreenshot && (
-                <Modal isOpen={isScreenshotModalOpen} onClose={() => setIsScreenshotModalOpen(false)} title={`Payment for Order #${order.id}`}>
-                    <img src={order.paymentScreenshot} alt="Payment Screenshot" className="w-full h-auto rounded-lg" />
+            {isScreenshotModalOpen && order.paymentScreenshot && (
+                <Modal
+                    isOpen={isScreenshotModalOpen}
+                    onClose={() => setIsScreenshotModalOpen(false)}
+                    title="Payment Screenshot"
+                >
+                    <img
+                        src={order.paymentScreenshot}
+                        alt="Screenshot"
+                        className="max-w-full rounded shadow"
+                    />
                 </Modal>
             )}
         </>

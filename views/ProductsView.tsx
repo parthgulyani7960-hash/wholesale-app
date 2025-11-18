@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { Product } from '../types';
 import ProductCard from '../components/ProductCard';
@@ -20,6 +21,8 @@ const priceRanges = [
 
 const sortOptions = [
     { label: 'Relevance', value: 'default' },
+    { label: 'Popularity (Best Seller)', value: 'popularity' },
+    { label: 'Newest Arrivals', value: 'newest' },
     { label: 'Price: Low to High', value: 'price-asc' },
     { label: 'Price: High to Low', value: 'price-desc' },
     { label: 'Name: A-Z', value: 'name-asc' },
@@ -126,6 +129,16 @@ const ProductsView: React.FC<ProductsViewProps> = ({ products, loading }) => {
         
         // Sort products
         switch (sortBy) {
+            case 'popularity':
+                tempProducts.sort((a, b) => {
+                    const aIsBestSeller = a.tags?.includes('Best Seller') ? 1 : 0;
+                    const bIsBestSeller = b.tags?.includes('Best Seller') ? 1 : 0;
+                    return bIsBestSeller - aIsBestSeller;
+                });
+                break;
+            case 'newest':
+                tempProducts.sort((a, b) => b.id - a.id);
+                break;
             case 'price-asc':
                 tempProducts.sort((a, b) => (a.discountPrice ?? a.price) - (b.discountPrice ?? b.price));
                 break;
@@ -140,7 +153,6 @@ const ProductsView: React.FC<ProductsViewProps> = ({ products, loading }) => {
                 break;
             case 'default':
             default:
-                // Keep default order, or you can sort by ID if needed
                 break;
         }
 
@@ -179,22 +191,39 @@ const ProductsView: React.FC<ProductsViewProps> = ({ products, loading }) => {
             <h1 className="text-4xl font-serif font-bold text-center text-primary mb-8">Our Collection</h1>
             
             {/* Filter/Sort section */}
-            <div className="bg-white p-4 rounded-lg shadow-md mb-8 sticky top-20 z-30">
+            <div className="bg-white p-4 rounded-lg shadow-md mb-8 sticky top-20 z-30 border border-gray-100">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                    <div className="md:col-span-2 relative">
+                    <div className="md:col-span-2 relative z-50">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
                         <input
                             type="text"
-                            placeholder="Search for products..."
+                            placeholder="Search by product name or description..."
                             value={searchQuery}
                             onChange={handleSearchChange}
-                            className="w-full px-5 py-3 border border-gray-300 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-accent transition-shadow"
+                            className="w-full pl-12 pr-10 py-3 border border-gray-300 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-accent transition-shadow"
                         />
+                        {searchQuery && (
+                            <button
+                                onClick={() => {
+                                    setSearchQuery('');
+                                    setAutocompleteSuggestions([]);
+                                }}
+                                className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+                        )}
                         {autocompleteSuggestions.length > 0 && (
-                            <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 z-10">
+                            <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
                                 {autocompleteSuggestions.map(p => {
                                     const lowercasedQuery = searchQuery.toLowerCase();
                                     const nameMatch = p.name.toLowerCase().includes(lowercasedQuery);
-                                    // Match in description only if not in name, to avoid redundancy
                                     const descriptionMatch = !nameMatch && p.description.toLowerCase().includes(lowercasedQuery);
 
                                     let descriptionSnippet: React.ReactNode | null = null;
@@ -213,11 +242,11 @@ const ProductsView: React.FC<ProductsViewProps> = ({ products, loading }) => {
                                         <div 
                                             key={p.id}
                                             onClick={() => handleSuggestionClick(p.name)}
-                                            className="px-5 py-3 hover:bg-gray-100 cursor-pointer"
+                                            className="px-5 py-3 hover:bg-gray-100 cursor-pointer border-b last:border-b-0 transition-colors"
                                         >
                                             <div className="font-semibold text-primary text-sm">{highlightMatch(p.name, searchQuery)}</div>
                                             {descriptionSnippet && (
-                                                <div className="text-xs text-gray-500 mt-1">
+                                                <div className="text-xs text-gray-500 mt-1 italic">
                                                     {descriptionSnippet}
                                                 </div>
                                             )}
@@ -236,23 +265,24 @@ const ProductsView: React.FC<ProductsViewProps> = ({ products, loading }) => {
                         <div className="relative">
                             <button 
                                 onClick={() => setIsFilterOpen(prev => !prev)}
-                                className="p-3 border border-gray-300 rounded-full shadow-sm hover:bg-gray-100 transition-colors"
+                                className={`p-3 border rounded-full shadow-sm transition-colors flex items-center gap-2 ${isFilterOpen ? 'bg-primary text-white border-primary' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}
                                 title="Filters & Sort"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9M3 12h9m-9 4h9m5-12v16a1 1 0 001-1V5a1 1 0 00-1-1z" />
                                 </svg>
+                                <span className="text-sm font-medium hidden sm:inline">Filters</span>
                             </button>
                             {isFilterOpen && (
-                                <div className="absolute top-full right-0 mt-2 w-72 bg-white border rounded-lg shadow-xl p-4 space-y-4 z-20 animate-slide-in">
+                                <div className="absolute top-full right-0 mt-2 w-72 bg-white border rounded-lg shadow-xl p-4 space-y-5 z-20 animate-slide-in">
                                     <div>
-                                        <label className="text-sm font-medium text-gray-700 mb-2 block">Price Range</label>
+                                        <label className="text-xs font-bold uppercase text-gray-500 tracking-wider mb-2 block">Price Range</label>
                                         <div className="flex flex-wrap gap-2">
                                             {priceRanges.map(range => (
                                                 <button
                                                     key={range.value}
                                                     onClick={() => setPriceRange(range.value)}
-                                                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${ priceRange === range.value ? 'bg-primary text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                                                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all border ${ priceRange === range.value ? 'bg-primary text-white border-primary shadow-sm' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'}`}
                                                 >
                                                     {range.label}
                                                 </button>
@@ -260,13 +290,13 @@ const ProductsView: React.FC<ProductsViewProps> = ({ products, loading }) => {
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="text-sm font-medium text-gray-700 mb-2 block">Sort by</label>
-                                        <div className="flex flex-wrap gap-2">
+                                        <label className="text-xs font-bold uppercase text-gray-500 tracking-wider mb-2 block">Sort by</label>
+                                        <div className="flex flex-col gap-1">
                                              {sortOptions.map(option => (
                                                 <button
                                                     key={option.value}
                                                     onClick={() => setSortBy(option.value)}
-                                                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${ sortBy === option.value ? 'bg-primary text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                                                    className={`px-3 py-2 rounded-md text-sm text-left transition-colors ${ sortBy === option.value ? 'bg-primary/10 text-primary font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
                                                 >
                                                     {option.label}
                                                 </button>
@@ -274,13 +304,13 @@ const ProductsView: React.FC<ProductsViewProps> = ({ products, loading }) => {
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="text-sm font-medium text-gray-700 mb-2 block">Stock Status</label>
+                                        <label className="text-xs font-bold uppercase text-gray-500 tracking-wider mb-2 block">Stock Status</label>
                                         <div className="flex flex-wrap gap-2">
                                             {stockStatusOptions.map(option => (
                                                 <button
                                                     key={option.value}
                                                     onClick={() => setStockStatusFilter(option.value)}
-                                                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${ stockStatusFilter === option.value ? 'bg-primary text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                                                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all border ${ stockStatusFilter === option.value ? 'bg-primary text-white border-primary shadow-sm' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'}`}
                                                 >
                                                     {option.label}
                                                 </button>
@@ -301,7 +331,7 @@ const ProductsView: React.FC<ProductsViewProps> = ({ products, loading }) => {
                         onClick={() => setSelectedCategory(category)}
                         className={`px-5 py-2 rounded-full font-medium text-sm md:text-base transition-all duration-300 ease-in-out transform hover:scale-105 ${
                             selectedCategory === category
-                                ? 'bg-primary text-white shadow-lg'
+                                ? 'bg-primary text-white shadow-lg ring-2 ring-primary ring-offset-2'
                                 : 'bg-white text-primary hover:bg-secondary border border-gray-200'
                         }`}
                     >
@@ -320,7 +350,14 @@ const ProductsView: React.FC<ProductsViewProps> = ({ products, loading }) => {
                 )}
             </div>
              {!loading && filteredProducts.length === 0 && (
-                <p className="text-center col-span-full text-gray-500 mt-8">No products found matching your criteria.</p>
+                <div className="text-center py-12 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <p className="text-lg text-gray-600 font-medium">No products found{searchQuery ? ` matching "${searchQuery}"` : ''}.</p>
+                    <p className="text-gray-500 text-sm mt-2">Try adjusting your search or filters.</p>
+                    <button onClick={resetFilters} className="mt-4 text-accent font-bold hover:underline">Clear all filters</button>
+                </div>
             )}
             
             <ProductQuickViewModal

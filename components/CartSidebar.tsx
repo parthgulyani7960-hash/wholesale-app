@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useEffect } from 'react';
 import Modal from './Modal';
 import CheckoutForm from './CheckoutForm';
@@ -71,7 +70,18 @@ const CartSidebar: React.FC<CartSidebarProps> = ({ isOpen, onClose, orders }) =>
                                                 <div className="flex items-center mt-2">
                                                     <div className="flex items-center border border-gray-200 rounded-md">
                                                         <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="px-2 py-1 text-gray-600 rounded-l-md hover:bg-gray-100 disabled:opacity-50">&minus;</button>
-                                                        <span className="px-3 font-semibold text-sm">{item.quantity}</span>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            value={item.quantity}
+                                                            onChange={(e) => {
+                                                                const val = parseInt(e.target.value);
+                                                                if (!isNaN(val) && val > 0) {
+                                                                    updateQuantity(item.id, val);
+                                                                }
+                                                            }}
+                                                            className="w-12 text-center text-sm font-semibold border-x border-gray-200 focus:outline-none py-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                        />
                                                         <button onClick={() => updateQuantity(item.id, item.quantity + 1)} disabled={item.quantity >= Math.min(item.stock, maxAllowed)} className="px-2 py-1 text-gray-600 rounded-r-md hover:bg-gray-100 disabled:opacity-50">+</button>
                                                     </div>
                                                 </div>

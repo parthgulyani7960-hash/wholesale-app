@@ -2,9 +2,9 @@
 import React, { ReactNode, useEffect } from 'react';
 
 interface ModalProps {
-    isOpen?: boolean;
+    isOpen?: boolean; // made optional
     onClose: () => void;
-    title?: string;
+    title?: string; // made optional
     children: ReactNode;
 }
 

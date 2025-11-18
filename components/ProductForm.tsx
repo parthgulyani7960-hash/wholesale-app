@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Product } from '../types';
@@ -28,6 +27,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ productToEdit, onFormSubmit }
     const [tags, setTags] = useState<string[]>([]);
     const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
     const tagDropdownRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
     const availableTags: Array<Product['tags'][number]> = ['New Arrival', 'Best Seller', 'On Sale', 'Organic', 'Local Favorite'];
@@ -101,6 +101,10 @@ const ProductForm: React.FC<ProductFormProps> = ({ productToEdit, onFormSubmit }
                 };
                 reader.readAsDataURL(file);
             });
+            // Clear input so same files can be selected again if needed
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
         }
     };
 
@@ -329,21 +333,47 @@ const ProductForm: React.FC<ProductFormProps> = ({ productToEdit, onFormSubmit }
                 </div>
             </div>
             <div>
-                <label htmlFor="image-upload" className="block text-sm font-medium text-gray-700">Images</label>
-                <input type="file" multiple accept="image/*" onChange={handleImageFilesChange} className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent/20 file:text-accent hover:file:bg-accent/30" />
-                <div className="mt-2 flex flex-wrap gap-2">
-                    {images.map((imageSrc, index) => (
-                        <div key={index} className="relative">
-                            <img src={imageSrc} alt={`upload-preview-${index}`} className="h-24 w-24 object-cover rounded-md" />
-                            <button
-                                type="button"
-                                onClick={() => removeImage(index)}
-                                className="absolute -top-2 -right-2 bg-red-600 text-white rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold"
-                            >
-                                &times;
-                            </button>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Product Images</label>
+                <div className="space-y-4">
+                     {/* Thumbnails Grid */}
+                    {images.length > 0 && (
+                        <div className="flex flex-wrap gap-4">
+                            {images.map((imageSrc, index) => (
+                                <div key={index} className="relative group w-24 h-24">
+                                    <img src={imageSrc} alt={`Product ${index + 1}`} className="w-full h-full object-cover rounded-lg border border-gray-200 shadow-sm" />
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded-lg"></div>
+                                    <button
+                                        type="button"
+                                        onClick={() => removeImage(index)}
+                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md hover:bg-red-600 transform scale-0 group-hover:scale-100 transition-transform duration-200"
+                                        title="Remove Image"
+                                    >
+                                        &times;
+                                    </button>
+                                </div>
+                            ))}
                         </div>
-                    ))}
+                    )}
+
+                    {/* Upload Area */}
+                    <div 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="border-2 border-dashed border-gray-300 rounded-lg p-8 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 hover:border-accent/50 transition-all duration-300"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <p className="text-sm text-gray-600 font-medium">Click to upload images</p>
+                        <p className="text-xs text-gray-400 mt-1">Supports multiple files (JPG, PNG, WEBP)</p>
+                        <input 
+                            type="file" 
+                            ref={fileInputRef}
+                            className="hidden" 
+                            multiple 
+                            accept="image/*" 
+                            onChange={handleImageFilesChange} 
+                        />
+                    </div>
                 </div>
             </div>
 
