@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { UserDetails, Order, PaymentMethod, DeliveryMethod, Coupon } from '../types';
@@ -72,23 +71,31 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({ onCheckoutSuccess, isFirstO
                 pincode: currentUser.pincode || '',
             }));
              if (currentUser.pincode) {
-                const isServiceable = serviceablePincodes.includes(currentUser.pincode);
+                const trimmedPincode = currentUser.pincode.trim();
+                let isServiceable = false;
+                if (storeInfo.shippingScope === 'nationwide') {
+                    isServiceable = /^\d{6}$/.test(trimmedPincode);
+                } else {
+                    isServiceable = serviceablePincodes.includes(trimmedPincode);
+                }
                 setPincodeStatus(isServiceable ? 'valid' : 'invalid');
             }
         }
-    }, [currentUser, serviceablePincodes]);
+    }, [currentUser, serviceablePincodes, storeInfo.shippingScope]);
 
     const handleUserChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setUserDetails(prev => ({ ...prev, [name]: value }));
 
         if (name === 'pincode') {
-            if (value.trim().length >= 5) {
-                const trimmedPincode = value.trim();
+            const trimmedPincode = value.trim();
+            if (trimmedPincode.length >= 5) {
                 let isServiceable = false;
                 if (storeInfo.shippingScope === 'nationwide') {
+                    // Basic 6-digit check for nationwide
                     isServiceable = /^\d{6}$/.test(trimmedPincode);
                 } else {
+                    // Check against specific serviceable pincodes
                     isServiceable = serviceablePincodes.includes(trimmedPincode);
                 }
                 setPincodeStatus(isServiceable ? 'valid' : 'invalid');
