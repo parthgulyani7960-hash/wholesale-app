@@ -14,8 +14,7 @@ interface AdminOrdersProps {
 
 const AdminOrders: React.FC<AdminOrdersProps> = ({ orders, updateOrderStatus, approveOrderPayment }) => {
     const [statusFilter, setStatusFilter] = useState<OrderStatus | 'All'>('All');
-    const [customerNameFilter, setCustomerNameFilter] = useState('');
-    const [orderIdFilter, setOrderIdFilter] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
     const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
     const [editingOrder, setEditingOrder] = useState<Order | null>(null);
     const [reviewingOrder, setReviewingOrder] = useState<Order | null>(null);
@@ -28,14 +27,16 @@ const AdminOrders: React.FC<AdminOrdersProps> = ({ orders, updateOrderStatus, ap
                 return false;
             }
 
-            // Customer name filter
-            if (customerNameFilter && !order.user.name.toLowerCase().includes(customerNameFilter.toLowerCase())) {
-                return false;
-            }
-
-            // Order ID filter
-            if (orderIdFilter && !String(order.id).includes(orderIdFilter)) {
-                return false;
+            // Search Filter (Customer Name, Order ID, Email)
+            if (searchQuery) {
+                const query = searchQuery.toLowerCase();
+                const matchesName = order.user.name.toLowerCase().includes(query);
+                const matchesEmail = order.user.email.toLowerCase().includes(query);
+                const matchesId = String(order.id).toLowerCase().includes(query);
+                
+                if (!matchesName && !matchesEmail && !matchesId) {
+                    return false;
+                }
             }
 
             // Date range filter
@@ -57,14 +58,13 @@ const AdminOrders: React.FC<AdminOrdersProps> = ({ orders, updateOrderStatus, ap
             
             return true;
         });
-    }, [orders, statusFilter, customerNameFilter, orderIdFilter, dateFilter]);
+    }, [orders, statusFilter, searchQuery, dateFilter]);
 
     const statusOptions: Array<OrderStatus | 'All'> = ['All', 'Pending', 'Approved', 'Packed', 'Out for Delivery', 'Delivered', 'Rejected', 'Cancelled'];
     
     const resetFilters = () => {
         setStatusFilter('All');
-        setCustomerNameFilter('');
-        setOrderIdFilter('');
+        setSearchQuery('');
         setDateFilter({ start: '', end: '' });
     };
 
@@ -73,27 +73,16 @@ const AdminOrders: React.FC<AdminOrdersProps> = ({ orders, updateOrderStatus, ap
             <h2 className="text-2xl font-serif font-bold mb-6">Manage Orders</h2>
             
             <div className="mb-6 p-4 border rounded-lg bg-gray-50 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                        <label htmlFor="customerName" className="block text-sm font-medium text-gray-700">Customer Name</label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-1">
+                        <label htmlFor="search" className="block text-sm font-medium text-gray-700">Search</label>
                         <input
                             type="text"
-                            id="customerName"
-                            value={customerNameFilter}
-                            onChange={e => setCustomerNameFilter(e.target.value)}
+                            id="search"
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
                             className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-accent"
-                            placeholder="Search by name..."
-                        />
-                    </div>
-                     <div>
-                        <label htmlFor="orderId" className="block text-sm font-medium text-gray-700">Order ID</label>
-                        <input
-                            type="text"
-                            id="orderId"
-                            value={orderIdFilter}
-                            onChange={e => setOrderIdFilter(e.target.value)}
-                            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-accent"
-                            placeholder="Search by ID..."
+                            placeholder="Name, Email, or Order ID..."
                         />
                     </div>
                     <div>

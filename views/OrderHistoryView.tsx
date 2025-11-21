@@ -1,10 +1,11 @@
+
 import React, { useMemo, useState } from 'react';
 import { Order, CartItem } from '../types';
 import { useAppContext } from '../context/AppContext';
 import OrderStatusStepper from '../components/OrderStatusStepper';
 import DeliveryReviewModal from '../components/DeliveryReviewModal';
 import OrderInvoice from '../components/OrderInvoice';
-import ReactDOM from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -34,7 +35,7 @@ const OrderCard: React.FC<{ order: Order }> = ({ order }) => {
         invoiceElement.style.width = '800px'; 
         document.body.appendChild(invoiceElement);
 
-        const root = ReactDOM.createRoot(invoiceElement);
+        const root = createRoot(invoiceElement);
         root.render(<OrderInvoice order={order} />);
         
         setTimeout(() => {
@@ -64,7 +65,7 @@ const OrderCard: React.FC<{ order: Order }> = ({ order }) => {
 
             const printRootEl = printWindow.document.getElementById('print-root');
             if (printRootEl) {
-                const root = ReactDOM.createRoot(printRootEl);
+                const root = createRoot(printRootEl);
                 root.render(<OrderInvoice order={order} />);
                 setTimeout(() => {
                     printWindow.print();
