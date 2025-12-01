@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { Product } from '../types';
@@ -6,24 +7,115 @@ import ProductQuickViewModal from '../components/ProductQuickViewModal';
 import Modal from '../components/Modal';
 
 const HomeView: React.FC<{ products: Product[] }> = ({ products }) => {
-    const { setView, storeInfo } = useAppContext();
+    const { setView, storeInfo, viewProduct } = useAppContext();
     const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
     const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
     const saleProducts = products.filter(p => p.isListed && p.tags?.includes('On Sale')).slice(0, 4);
 
+    // Search State
+    const [searchQuery, setSearchQuery] = useState('');
+    const [suggestions, setSuggestions] = useState<Product[]>([]);
+
+    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const query = e.target.value;
+        setSearchQuery(query);
+        if (query.length > 1) {
+            const lowercasedQuery = query.toLowerCase();
+            const matches = products.filter(p => 
+                p.isListed && (
+                    p.name.toLowerCase().includes(lowercasedQuery) ||
+                    p.description.toLowerCase().includes(lowercasedQuery)
+                )
+            ).slice(0, 5);
+            setSuggestions(matches);
+        } else {
+            setSuggestions([]);
+        }
+    };
+
+    const handleProductClick = (product: Product) => {
+        viewProduct(product.id);
+        setSearchQuery('');
+        setSuggestions([]);
+    };
+
     return (
         <div>
-            <div className="h-[calc(80vh)] flex items-center justify-center bg-hero-pattern bg-cover bg-center">
-                <div className="text-center bg-black/50 p-6 sm:p-10 rounded-lg backdrop-blur-sm select-none cursor-default">
+            <div className="h-[calc(80vh)] flex items-center justify-center bg-hero-pattern bg-cover bg-center relative">
+                <div className="text-center bg-black/50 p-6 sm:p-10 rounded-lg backdrop-blur-sm select-none cursor-default w-full max-w-3xl mx-4">
                     <h1 className="text-4xl sm:text-5xl md:text-7xl font-serif font-bold text-white mb-4">
                         Welcome to {storeInfo.name}
                     </h1>
-                    <p className="text-lg sm:text-xl text-secondary mb-8 max-w-2xl">
+                    <p className="text-lg sm:text-xl text-secondary mb-8 max-w-2xl mx-auto">
                         Your one-stop shop for daily essentials and quality goods.
                     </p>
+
+                    {/* Search Bar */}
+                    <div className="relative mb-8 max-w-lg mx-auto text-left">
+                        <div className="relative">
+                            <input 
+                                type="text" 
+                                value={searchQuery}
+                                onChange={handleSearchChange}
+                                placeholder="Search for products (e.g., Rice, Soap)..." 
+                                className="w-full py-3 pl-12 pr-10 rounded-full text-gray-800 focus:outline-none focus:ring-4 focus:ring-accent/50 shadow-xl transition-shadow"
+                            />
+                            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                            {searchQuery && (
+                                <button onClick={() => { setSearchQuery(''); setSuggestions([]); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
+
+                        {suggestions.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-2xl overflow-hidden z-50 border border-gray-100 animate-fade-in-fast">
+                                {suggestions.map(product => {
+                                    const isOutOfStock = product.stock === 0;
+                                    const isLowStock = product.stock > 0 && product.stock <= (product.reorderPoint || 5);
+                                    
+                                    return (
+                                        <div 
+                                            key={product.id}
+                                            onClick={() => handleProductClick(product)}
+                                            className="flex items-center p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0 transition-colors group"
+                                        >
+                                            <img src={product.imageUrls[0]} alt={product.name} className="w-12 h-12 object-cover rounded border border-gray-200 mr-3" />
+                                            <div className="flex-grow min-w-0">
+                                                <p className="font-semibold text-primary text-sm group-hover:text-accent transition-colors truncate">{product.name}</p>
+                                                <p className="text-xs text-gray-500 truncate">{product.description}</p>
+                                            </div>
+                                            <div className="ml-3 text-right min-w-[80px]">
+                                                <div className="font-bold text-primary text-sm">
+                                                    {product.discountPrice ? (
+                                                        <div className="flex flex-col items-end leading-none">
+                                                            <span className="text-[10px] text-gray-400 line-through">₹{product.price}</span>
+                                                            <span className="text-red-600">₹{product.discountPrice}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span>₹{product.price}</span>
+                                                    )}
+                                                </div>
+                                                <div className={`text-[10px] font-medium mt-1 ${isOutOfStock ? 'text-red-500' : isLowStock ? 'text-orange-500' : 'text-green-600'}`}>
+                                                    {isOutOfStock ? 'Out of Stock' : isLowStock ? `Only ${product.stock} left` : 'In Stock'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
                     <button
                         onClick={() => setView('products')}
-                        className="bg-accent text-primary font-bold py-3 px-8 rounded-lg text-lg hover:bg-opacity-80 transition-all duration-300 transform hover:scale-105"
+                        className="bg-accent text-primary font-bold py-3 px-8 rounded-lg text-lg hover:bg-opacity-90 transition-all duration-300 transform hover:scale-105 shadow-lg"
                     >
                         Explore Our Collection
                     </button>
@@ -120,6 +212,15 @@ const HomeView: React.FC<{ products: Product[] }> = ({ products }) => {
                     </div>
                 </div>
             </Modal>
+            <style>{`
+                @keyframes fadeInFast {
+                    from { opacity: 0; transform: translateY(-5px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .animate-fade-in-fast {
+                    animation: fadeInFast 0.2s ease-out forwards;
+                }
+            `}</style>
         </div>
     );
 };

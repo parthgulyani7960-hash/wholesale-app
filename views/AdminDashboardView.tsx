@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Order, OrderStatus, User, Product, Expense, Coupon } from '../types';
 import AdminOverview from '../components/admin/AdminOverview';
@@ -68,6 +67,34 @@ const AdminReports: React.FC<{ orders: Order[]; products: Product[]; customers: 
         return Array.from(customerSpending.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
     }, [deliveredOrders]);
 
+    const downloadCSV = () => {
+        const headers = ['Order ID', 'Date', 'Customer Name', 'Email', 'Phone', 'Address', 'Pincode', 'Total', 'Status', 'Payment Method', 'Items'];
+        const rows = orders.map(order => [
+            order.id,
+            order.date.toLocaleDateString(),
+            `"${order.user.name}"`,
+            order.user.email,
+            order.user.mobile,
+            `"${order.user.address.replace(/"/g, '""')}"`, // Escape quotes
+            order.user.pincode,
+            order.total.toFixed(2),
+            order.status,
+            order.paymentMethod,
+            `"${order.items.map(i => `${i.quantity}x ${i.name}`).join('; ').replace(/"/g, '""')}"`
+        ]);
+
+        const csvContent = "data:text/csv;charset=utf-8,"
+            + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `orders_export_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const BarChart: React.FC<{ title: string; data: any[] }> = ({ title, data }) => {
         const maxValue = useMemo(() => Math.max(...data.map(item => item.revenue), 0), [data]);
     
@@ -102,7 +129,19 @@ const AdminReports: React.FC<{ orders: Order[]; products: Product[]; customers: 
 
     return (
          <div>
-            <h2 className="text-2xl font-serif font-bold mb-6">Financial Reports</h2>
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-serif font-bold">Financial Reports</h2>
+                <button 
+                    onClick={downloadCSV}
+                    className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors text-sm font-bold shadow-sm"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Export Orders (CSV)
+                </button>
+            </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-gray-50 p-6 rounded-lg">
                     <h3 className="font-semibold text-lg">This Month's Revenue</h3>
@@ -126,13 +165,6 @@ const AdminReports: React.FC<{ orders: Order[]; products: Product[]; customers: 
             <div className="mt-12 grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <BarChart title="Top Selling Products" data={topProducts} />
                 <BarChart title="Top Customers" data={topCustomers} />
-            </div>
-
-             <div className="mt-8">
-                <h3 className="text-xl font-serif font-bold mb-4">GST Invoice (Sample)</h3>
-                <div className="border p-4 rounded-md text-sm">
-                    <p>This section would contain functionalities to generate and download GST-compliant invoices for each order. For now, it's a placeholder representing where financial tools would be integrated.</p>
-                </div>
             </div>
         </div>
     )
@@ -211,7 +243,10 @@ const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ orders, users, 
         // Audio alert for new manual payment uploads
         const currentPendingOrders = orders.filter(o => o.status === 'Pending' && o.paymentMethod === 'Manual Transfer' && o.paymentScreenshot).length;
         if (currentPendingOrders > prevPendingOrdersRef.current) {
-            audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
+            // Play a valid beep. Catch errors to prevent crashes if autoplay is blocked.
+            if (audioRef.current) {
+                audioRef.current.play().catch(err => console.warn("Audio playback failed (likely autoplay policy):", err));
+            }
         }
         prevPendingOrdersRef.current = currentPendingOrders;
     }, [orders]);
@@ -274,17 +309,37 @@ const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ orders, users, 
 
     return (
         <div className="container mx-auto px-6 py-12">
-            <audio ref={audioRef} src="data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU2LjM2LjEwMAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6urq6urq6v////////////////////////////////8AAAAATGF2YzU2LjQxAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//OExAAAAAAAAAAAAAAAFlLpAUAAAQAAA4AAAAA//OEwEcAAAG4AAAAAABr//N+9YAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/84TEfgAACAABJgAAAAAAAAAAAAAAARoBoQGgoAAYgTAN/7uDF9+Ajdlf/84TEIAAAEAAAG4AAAAAAAAAAAAAAAVGGbQVoAMwAMwwAABo5/7/84TEYAAAAEAAAG4AAAAAAAAAAAAAABQoaZhVjgz00MMMAAAaN//f/ziBKYgAAABAAABpAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQECAgICAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAP/zhMRmAAAABAAABuAAAAAAAAAAAAAAAUaGAAAAA//OEwE4AAAG4AAAAAABr/+9+9QAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/84TEfgAACAABJgAAAAAAAAAAAAAAARoBoQGgoAAYgTAN/7uDF9+Ajdlf/84TEIAAAEAAAG4AAAAAAAAAAAAAAAVGGbQVoAMwAMwwAABo5/7/84TEYAAAAEAAAG4AAAAAAAAAAAAAABQoaZhVjgz00MMMAAAaN//f/ziBKYgAAABAAABpAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQECAgICAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAP/zhMRmAAAABAAABuAAAAAAAAAAAAAAAUaGAAAAA=" preload="auto" />
-            <h1 className="text-4xl font-serif font-bold mb-2">Admin Dashboard</h1>
-            <p className="text-gray-600 mb-8">Welcome, {currentUser.name}. Your role is: <span className="font-semibold capitalize">{currentUser.role}</span>.</p>
-
-            <div className="flex space-x-2 border-b border-gray-200 mb-6 overflow-x-auto pb-2">
-                {availableTabs.map(tab => <TabButton key={tab} tabName={tab} />)}
+            {/* Valid short beep MP3 to prevent media errors */}
+            <audio ref={audioRef} src="data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq" />
+            
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-4">
+                <h1 className="text-3xl font-serif font-bold text-primary">Admin Dashboard</h1>
+                <div className="flex items-center gap-3 bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+                    <span className="h-3 w-3 rounded-full bg-green-500 animate-pulse"></span>
+                    <span className="text-sm font-medium text-gray-600">Live System</span>
+                </div>
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow-md">
+            {/* Tab Navigation */}
+            <div className="mb-8 overflow-x-auto pb-2">
+                <div className="flex space-x-2">
+                    {availableTabs.map(tab => <TabButton key={tab} tabName={tab} />)}
+                </div>
+            </div>
+
+            {/* Content Area */}
+            <div className="bg-white rounded-lg shadow-lg p-6 min-h-[500px] animate-fade-in">
                 {renderContent()}
             </div>
+             <style>{`
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(5px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .animate-fade-in {
+                    animation: fadeIn 0.3s ease-out forwards;
+                }
+            `}</style>
         </div>
     );
 };

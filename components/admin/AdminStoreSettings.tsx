@@ -65,6 +65,10 @@ const AdminStoreSettings: React.FC = () => {
                             <label htmlFor="hours" className="block text-sm font-medium text-gray-700">Operating Hours</label>
                             <input type="text" id="hours" name="hours" value={formState.hours} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-accent" />
                         </div>
+                        <div>
+                            <label htmlFor="gstNumber" className="block text-sm font-medium text-gray-700">GST Number</label>
+                            <input type="text" id="gstNumber" name="gstNumber" value={formState.gstNumber} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-accent" />
+                        </div>
                         <div className="md:col-span-2">
                             <label htmlFor="googleMapsLink" className="block text-sm font-medium text-gray-700">Google Maps Link</label>
                             <input type="text" id="googleMapsLink" name="googleMapsLink" value={formState.googleMapsLink} onChange={handleChange} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-accent" />

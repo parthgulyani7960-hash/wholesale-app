@@ -36,7 +36,7 @@ const AdminOrderRow: React.FC<AdminOrderRowProps> = ({ order, updateOrderStatus,
         action();
     };
 
-    const handleDownloadPdf = () => {
+    const handleDownloadPdf = async () => {
         const invoiceElement = document.createElement('div');
         invoiceElement.style.position = 'absolute';
         invoiceElement.style.left = '-9999px';
@@ -46,19 +46,29 @@ const AdminOrderRow: React.FC<AdminOrderRowProps> = ({ order, updateOrderStatus,
         const root = createRoot(invoiceElement);
         root.render(<OrderInvoice order={order} />);
 
-        setTimeout(() => {
-            html2canvas(invoiceElement).then((canvas: any) => {
-                const imgData = canvas.toDataURL('image/png');
-                const pdf = new jsPDF('p', 'mm', 'a4');
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-                pdf.save(`invoice-${order.id}.pdf`);
+        // Allow time for render
+        await new Promise(resolve => setTimeout(resolve, 500));
 
+        try {
+            const canvas = await html2canvas(invoiceElement, { scale: 2, useCORS: true });
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`invoice-${order.id}.pdf`);
+        } catch (error) {
+            console.error("Failed to generate PDF:", error);
+            alert("Could not generate PDF. Please try again.");
+        } finally {
+            // Ensure cleanup happens even if PDF generation fails
+            setTimeout(() => {
                 root.unmount();
-                document.body.removeChild(invoiceElement);
-            });
-        }, 100);
+                if (document.body.contains(invoiceElement)) {
+                    document.body.removeChild(invoiceElement);
+                }
+            }, 100);
+        }
     };
 
     const handlePrintInvoice = () => {
@@ -99,7 +109,7 @@ const AdminOrderRow: React.FC<AdminOrderRowProps> = ({ order, updateOrderStatus,
                 <td className="py-3 px-4 text-left">
                     <div>{order.paymentMethod}</div>
                     {order.paymentMethod === 'Manual Transfer' && order.paymentScreenshot && (
-                        <button onClick={(e) => handleActionClick(e, () => setIsScreenshotModalOpen(true))} className="text-xs text-accent hover:underline ml-1">(View)</button>
+                        <button type="button" onClick={(e) => handleActionClick(e, () => setIsScreenshotModalOpen(true))} className="text-xs text-accent hover:underline ml-1">(View)</button>
                     )}
                     {order.paymentApproved && (
                         <div className="flex items-center gap-1 text-xs text-green-600 font-semibold mt-1">
@@ -119,12 +129,12 @@ const AdminOrderRow: React.FC<AdminOrderRowProps> = ({ order, updateOrderStatus,
                 <td className="py-3 px-4 text-center">
                     <div className="flex items-center justify-center space-x-2">
                         {order.status === 'Pending' && !order.paymentApproved && (order.paymentMethod === 'Manual Transfer' || order.paymentMethod === 'Pay on Khata') && (
-                            <button onClick={(e) => handleActionClick(e, () => approveOrderPayment(order.id))} className="bg-green-100 text-green-700 font-semibold px-2 py-1 rounded text-xs hover:bg-green-200">
+                            <button type="button" onClick={(e) => handleActionClick(e, () => approveOrderPayment(order.id))} className="bg-green-100 text-green-700 font-semibold px-2 py-1 rounded text-xs hover:bg-green-200">
                                 Approve Payment
                             </button>
                         )}
                         {order.deliveryReview && (
-                             <button onClick={(e) => handleActionClick(e, () => onViewReview(order))} className="text-blue-500 hover:text-blue-700 p-1" title="View Delivery Review">
+                             <button type="button" onClick={(e) => handleActionClick(e, () => onViewReview(order))} className="text-blue-500 hover:text-blue-700 p-1" title="View Delivery Review">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.08-3.083A6.973 6.973 0 012 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM4.416 14.584A6.983 6.983 0 0010 16c3.866 0 7-2.686 7-6s-3.134-6-7-6-7 2.686-7 6c0 1.31.378 2.523 1.025 3.584L4.416 14.584z" clipRule="evenodd" />
                                 </svg>
@@ -142,16 +152,16 @@ const AdminOrderRow: React.FC<AdminOrderRowProps> = ({ order, updateOrderStatus,
                             ))}
                         </select>
                         {order.status === 'Pending' && (
-                             <button onClick={(e) => handleActionClick(e, () => onEdit(order))} className="text-accent hover:underline text-xs font-semibold">
+                             <button type="button" onClick={(e) => handleActionClick(e, () => onEdit(order))} className="text-accent hover:underline text-xs font-semibold">
                                 Edit
                             </button>
                         )}
-                         <button onClick={(e) => handleActionClick(e, handleDownloadPdf)} className="text-gray-500 hover:text-gray-700 p-1" title="Download Bill (PDF)">
+                         <button type="button" onClick={(e) => handleActionClick(e, handleDownloadPdf)} className="text-gray-500 hover:text-gray-700 p-1" title="Download Bill (PDF)">
                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                             </svg>
                         </button>
-                         <button onClick={(e) => handleActionClick(e, handlePrintInvoice)} className="text-gray-500 hover:text-gray-700 p-1" title="Print Invoice">
+                         <button type="button" onClick={(e) => handleActionClick(e, handlePrintInvoice)} className="text-gray-500 hover:text-gray-700 p-1" title="Print Invoice">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v3a2 2 0 002 2h6a2 2 0 002-2v-3h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" /></svg>
                         </button>
                     </div>

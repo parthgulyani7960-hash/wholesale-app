@@ -1,16 +1,30 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { Product } from '../../types';
 import Modal from '../Modal';
 import ProductForm from '../ProductForm';
 
 const AdminProducts: React.FC = () => {
-    const { products, updateProduct, deleteProduct, categories, addCategory, deleteCategory } = useAppContext();
+    const { products, updateProduct, deleteProduct, categories, addCategory, deleteCategory, showNotification } = useAppContext();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
     const [newCategoryName, setNewCategoryName] = useState('');
     const [filters, setFilters] = useState({ query: '', category: 'All', stock: 'All' });
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    
+    const [isBulkActionsOpen, setIsBulkActionsOpen] = useState(false);
+    const bulkActionsRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (bulkActionsRef.current && !bulkActionsRef.current.contains(event.target as Node)) {
+                setIsBulkActionsOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     const filteredProducts = useMemo(() => {
         return products.filter(p => {
@@ -31,6 +45,41 @@ const AdminProducts: React.FC = () => {
 
     const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         setFilters(prev => ({ ...prev, [e.target.name]: e.target.value }));
+        setSelectedIds([]); // Clear selection on filter change
+    };
+
+    const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.checked) {
+            setSelectedIds(filteredProducts.map(p => p.id));
+        } else {
+            setSelectedIds([]);
+        }
+    };
+
+    const handleSelectOne = (id: number) => {
+        setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    };
+
+    const handleBulkDelete = async () => {
+        if (window.confirm(`Are you sure you want to delete ${selectedIds.length} products? This cannot be undone.`)) {
+            for (const id of selectedIds) {
+                await deleteProduct(id);
+            }
+            setSelectedIds([]);
+            showNotification(`Deleted ${selectedIds.length} products.`);
+        }
+    };
+
+    const handleBulkStockUpdate = async (stockValue: number) => {
+        const action = stockValue === 0 ? 'Out of Stock' : `In Stock (${stockValue})`;
+        if (window.confirm(`Mark ${selectedIds.length} products as ${action}?`)) {
+            for (const id of selectedIds) {
+                const product = products.find(p => p.id === id);
+                if (product) await updateProduct({ ...product, stock: stockValue });
+            }
+            setSelectedIds([]);
+            showNotification('Stock updated for selected products.');
+        }
     };
 
     const openAddModal = () => {
@@ -68,7 +117,7 @@ const AdminProducts: React.FC = () => {
     };
 
     return (
-        <div>
+        <div className="relative">
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-serif font-bold">Manage Products</h2>
                 <button
@@ -100,10 +149,18 @@ const AdminProducts: React.FC = () => {
                 </select>
             </div>
             
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto mb-16"> {/* Added margin bottom for floating bar */}
                 <table className="min-w-full bg-white">
                     <thead className="bg-gray-800 text-white text-sm">
                         <tr>
+                            <th className="py-3 px-4 text-center w-12">
+                                <input 
+                                    type="checkbox" 
+                                    onChange={handleSelectAll}
+                                    checked={filteredProducts.length > 0 && selectedIds.length === filteredProducts.length}
+                                    className="h-4 w-4 text-accent rounded border-gray-300 focus:ring-accent cursor-pointer"
+                                />
+                            </th>
                             <th className="py-3 px-4 text-left">Product Name</th>
                             <th className="py-3 px-4 text-left">Category</th>
                             <th className="py-3 px-4 text-center">Price</th>
@@ -115,8 +172,17 @@ const AdminProducts: React.FC = () => {
                     <tbody className="text-gray-700 text-sm">
                         {filteredProducts.map(product => {
                             const isLowStock = product.stock > 0 && product.stock <= (product.reorderPoint || 5);
+                            const isSelected = selectedIds.includes(product.id);
                             return (
-                                <tr key={product.id} className="border-b border-gray-200 hover:bg-gray-50">
+                                <tr key={product.id} className={`border-b border-gray-200 hover:bg-gray-50 ${isSelected ? 'bg-blue-50' : ''}`}>
+                                    <td className="py-3 px-4 text-center">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={isSelected}
+                                            onChange={() => handleSelectOne(product.id)}
+                                            className="h-4 w-4 text-accent rounded border-gray-300 focus:ring-accent cursor-pointer"
+                                        />
+                                    </td>
                                     <td className="py-3 px-4 text-left flex items-center">
                                         <img src={product.imageUrls[0]} alt={product.name} className="w-10 h-10 object-cover rounded-md mr-4" />
                                         {product.name}
@@ -203,9 +269,45 @@ const AdminProducts: React.FC = () => {
                 </div>
             </div>
 
+            {selectedIds.length > 0 && (
+                <div className="fixed bottom-5 left-1/2 transform -translate-x-1/2 bg-white border border-gray-200 shadow-2xl rounded-full px-6 py-3 flex items-center gap-4 z-40 animate-fade-in-up">
+                    <div className="flex items-center gap-2">
+                        <span className="font-bold text-primary text-sm whitespace-nowrap">{selectedIds.length} selected</span>
+                        <button onClick={() => setSelectedIds([])} className="text-gray-400 hover:text-gray-600 text-lg leading-none" title="Clear Selection">&times;</button>
+                    </div>
+                    <div className="h-6 w-px bg-gray-300"></div>
+                    
+                    <button 
+                        onClick={() => handleBulkStockUpdate(0)}
+                        className="text-sm font-medium text-gray-700 hover:text-orange-600 transition-colors whitespace-nowrap"
+                    >
+                        Mark Out of Stock
+                    </button>
+                    
+                    <div className="h-6 w-px bg-gray-300"></div>
+
+                    <button 
+                        onClick={handleBulkDelete}
+                        className="text-sm font-medium text-red-600 hover:text-red-800 transition-colors whitespace-nowrap flex items-center gap-1"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        Delete Selected
+                    </button>
+                </div>
+            )}
+
             <Modal isOpen={isModalOpen} onClose={closeModal} title={editingProduct ? 'Edit Product' : 'Add New Product'}>
                 <ProductForm productToEdit={editingProduct} onFormSubmit={closeModal} />
             </Modal>
+            <style>{`
+                @keyframes fadeInUp {
+                    from { opacity: 0; transform: translate(-50%, 20px); }
+                    to { opacity: 1; transform: translate(-50%, 0); }
+                }
+                .animate-fade-in-up {
+                    animation: fadeInUp 0.3s ease-out forwards;
+                }
+            `}</style>
         </div>
     );
 };

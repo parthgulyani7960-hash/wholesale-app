@@ -225,6 +225,10 @@ const ProductsView: React.FC<ProductsViewProps> = ({ products, loading }) => {
                                     const lowercasedQuery = searchQuery.toLowerCase();
                                     const nameMatch = p.name.toLowerCase().includes(lowercasedQuery);
                                     const descriptionMatch = !nameMatch && p.description.toLowerCase().includes(lowercasedQuery);
+                                    
+                                    const isOutOfStock = p.stock === 0;
+                                    const isLowStock = p.stock > 0 && p.stock <= (p.reorderPoint || 5);
+                                    const displayPrice = p.discountPrice ?? p.price;
 
                                     let descriptionSnippet: React.ReactNode | null = null;
                                     if (descriptionMatch) {
@@ -242,14 +246,23 @@ const ProductsView: React.FC<ProductsViewProps> = ({ products, loading }) => {
                                         <div 
                                             key={p.id}
                                             onClick={() => handleSuggestionClick(p.name)}
-                                            className="px-5 py-3 hover:bg-gray-100 cursor-pointer border-b last:border-b-0 transition-colors"
+                                            className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0 transition-colors flex justify-between items-center gap-4"
                                         >
-                                            <div className="font-semibold text-primary text-sm">{highlightMatch(p.name, searchQuery)}</div>
-                                            {descriptionSnippet && (
-                                                <div className="text-xs text-gray-500 mt-1 italic">
-                                                    {descriptionSnippet}
+                                            <img src={p.imageUrls[0]} alt={p.name} className="w-10 h-10 object-cover rounded border border-gray-200 flex-shrink-0" />
+                                            <div className="flex-grow min-w-0">
+                                                <div className="font-semibold text-primary text-sm truncate">{highlightMatch(p.name, searchQuery)}</div>
+                                                {descriptionSnippet && (
+                                                    <div className="text-xs text-gray-500 mt-0.5 truncate">
+                                                        {descriptionSnippet}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="text-right flex-shrink-0">
+                                                <div className="font-bold text-sm text-primary">₹{displayPrice}</div>
+                                                <div className={`text-[10px] font-medium ${isOutOfStock ? 'text-red-500' : isLowStock ? 'text-orange-500' : 'text-green-600'}`}>
+                                                     {isOutOfStock ? 'Out of Stock' : isLowStock ? 'Low Stock' : 'In Stock'}
                                                 </div>
-                                            )}
+                                            </div>
                                         </div>
                                     );
                                 })}
@@ -275,6 +288,18 @@ const ProductsView: React.FC<ProductsViewProps> = ({ products, loading }) => {
                             </button>
                             {isFilterOpen && (
                                 <div className="absolute top-full right-0 mt-2 w-72 bg-white border rounded-lg shadow-xl p-4 space-y-5 z-20 animate-slide-in">
+                                    <div>
+                                        <label className="text-xs font-bold uppercase text-gray-500 tracking-wider mb-2 block">Category</label>
+                                        <select
+                                            value={selectedCategory}
+                                            onChange={(e) => setSelectedCategory(e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-accent focus:border-accent bg-gray-50 text-gray-700"
+                                        >
+                                            {categories.map(category => (
+                                                <option key={category} value={category}>{category}</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                     <div>
                                         <label className="text-xs font-bold uppercase text-gray-500 tracking-wider mb-2 block">Price Range</label>
                                         <div className="flex flex-wrap gap-2">

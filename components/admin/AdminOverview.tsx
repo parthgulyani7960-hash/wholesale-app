@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { Order, Product, User, SupportTicket } from '../../types';
 
@@ -8,13 +9,16 @@ interface AdminOverviewProps {
     tickets: SupportTicket[];
 }
 
-const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactElement, className?: string }> = ({ title, value, icon, className = '' }) => (
-    <div className={`bg-gray-50 p-6 rounded-lg flex items-center space-x-4 ${className}`}>
-        <div className="bg-accent/20 text-accent p-3 rounded-full">{icon}</div>
-        <div>
-            <p className="text-sm text-gray-500">{title}</p>
-            <p className="text-2xl font-bold text-primary">{value}</p>
+const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactElement, className?: string, action?: React.ReactNode }> = ({ title, value, icon, className = '', action }) => (
+    <div className={`bg-gray-50 p-6 rounded-lg flex items-center justify-between ${className}`}>
+        <div className="flex items-center space-x-4">
+            <div className="bg-accent/20 text-accent p-3 rounded-full">{icon}</div>
+            <div>
+                <p className="text-sm text-gray-500">{title}</p>
+                <p className="text-2xl font-bold text-primary">{value}</p>
+            </div>
         </div>
+        {action}
     </div>
 );
 
@@ -82,9 +86,17 @@ const AdminOverview: React.FC<AdminOverviewProps> = ({ orders, products, users, 
         tickets.filter(t => t.status === 'Open' || t.status === 'In Progress').length
     , [tickets]);
 
-    const lowStockProductsCount = useMemo(() => 
-        products.filter(p => p.stock > 0 && p.stock <= 5).length
+    const lowStockProducts = useMemo(() => 
+        products.filter(p => p.stock > 0 && p.stock <= 5)
     , [products]);
+
+    const handleShareLowStock = () => {
+        if (lowStockProducts.length === 0) return;
+        const items = lowStockProducts.map(p => `- ${p.name} (Stock: ${p.stock})`).join('\n');
+        const message = `*Low Stock Alert*\n\nThe following items need reordering:\n\n${items}`;
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+        window.open(whatsappUrl, '_blank');
+    };
 
     return (
         <div>
@@ -108,9 +120,16 @@ const AdminOverview: React.FC<AdminOverviewProps> = ({ orders, products, users, 
                 />
                  <StatCard
                     title="Low Stock Items"
-                    value={lowStockProductsCount}
+                    value={lowStockProducts.length}
                     icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>}
-                    className={lowStockProductsCount > 0 ? 'bg-red-50 border border-red-200' : ''}
+                    className={lowStockProducts.length > 0 ? 'bg-red-50 border border-red-200' : ''}
+                    action={
+                        lowStockProducts.length > 0 && (
+                            <button onClick={handleShareLowStock} title="Share List via WhatsApp" className="text-green-600 hover:bg-green-100 p-2 rounded-full transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654z"/></svg>
+                            </button>
+                        )
+                    }
                 />
             </div>
             <SalesChart orders={orders} />

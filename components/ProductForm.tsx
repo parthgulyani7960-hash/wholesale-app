@@ -91,16 +91,32 @@ const ProductForm: React.FC<ProductFormProps> = ({ productToEdit, onFormSubmit }
         );
     };
     
-    const handleImageFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            const filesArray = Array.from(e.target.files);
-            filesArray.forEach((file: File) => {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    setImages(prev => [...prev, reader.result as string]);
-                };
-                reader.readAsDataURL(file);
-            });
+    const handleImageFilesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0) {
+            const filesArray = Array.from(e.target.files) as File[];
+            
+            try {
+                const fileReadPromises = filesArray.map(file => {
+                    return new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            if (reader.result) {
+                                resolve(reader.result as string);
+                            } else {
+                                reject("Failed to read file");
+                            }
+                        };
+                        reader.onerror = () => reject("Error reading file");
+                        reader.readAsDataURL(file);
+                    });
+                });
+
+                const newImages = await Promise.all(fileReadPromises);
+                setImages(prev => [...prev, ...newImages]);
+            } catch (error) {
+                console.error("Error reading images:", error);
+            }
+
             // Clear input so same files can be selected again if needed
             if (fileInputRef.current) {
                 fileInputRef.current.value = '';
@@ -110,6 +126,16 @@ const ProductForm: React.FC<ProductFormProps> = ({ productToEdit, onFormSubmit }
 
     const removeImage = (indexToRemove: number) => {
         setImages(prev => prev.filter((_, index) => index !== indexToRemove));
+    };
+
+    const moveImage = (index: number, direction: 'left' | 'right') => {
+        const newImages = [...images];
+        if (direction === 'left' && index > 0) {
+            [newImages[index], newImages[index - 1]] = [newImages[index - 1], newImages[index]];
+        } else if (direction === 'right' && index < images.length - 1) {
+            [newImages[index], newImages[index + 1]] = [newImages[index + 1], newImages[index]];
+        }
+        setImages(newImages);
     };
 
     const handleMarkOutOfStock = () => {
@@ -342,10 +368,35 @@ const ProductForm: React.FC<ProductFormProps> = ({ productToEdit, onFormSubmit }
                                 <div key={index} className="relative group w-24 h-24">
                                     <img src={imageSrc} alt={`Product ${index + 1}`} className="w-full h-full object-cover rounded-lg border border-gray-200 shadow-sm" />
                                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors rounded-lg"></div>
+                                    
+                                    {/* Move Left */}
+                                    {index > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => moveImage(index, 'left')}
+                                            className="absolute bottom-1 left-1 bg-white/90 hover:bg-white text-gray-800 rounded-full p-1 shadow-md opacity-80 hover:opacity-100 transition-opacity z-10"
+                                            title="Move Left"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                                        </button>
+                                    )}
+
+                                    {/* Move Right */}
+                                    {index < images.length - 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => moveImage(index, 'right')}
+                                            className="absolute bottom-1 right-1 bg-white/90 hover:bg-white text-gray-800 rounded-full p-1 shadow-md opacity-80 hover:opacity-100 transition-opacity z-10"
+                                            title="Move Right"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                                        </button>
+                                    )}
+
                                     <button
                                         type="button"
                                         onClick={() => removeImage(index)}
-                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md hover:bg-red-600 transform scale-0 group-hover:scale-100 transition-transform duration-200"
+                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md hover:bg-red-600 transform scale-100 transition-transform duration-200 z-10"
                                         title="Remove Image"
                                     >
                                         &times;
