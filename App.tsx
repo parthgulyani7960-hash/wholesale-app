@@ -269,27 +269,64 @@ const App: React.FC = () => {
 
     const updateOrderStatus = useCallback(async (orderId: string, status: OrderStatus) => {
         const originalOrder = orders.find(o => o.id === orderId);
+        if (!originalOrder) {
+            showNotification(`Order #${orderId} not found.`);
+            return;
+        }
+        
+        const previousStatus = originalOrder.status;
+        const statusChangeNote = `Status changed from "${previousStatus}" to "${status}"`;
+        
         setOrders(prev => prev.map(order => {
             if (order.id === orderId) {
                 const updatedOrder = { ...order, status };
-                if (status === 'Delivered') updatedOrder.deliveredDate = new Date();
+                
+                if (status === 'Delivered') {
+                    updatedOrder.deliveredDate = new Date();
+                }
+                
+                const systemNote = {
+                    note: statusChangeNote,
+                    author: 'System',
+                    date: new Date()
+                };
+                updatedOrder.internalNotes = [...(order.internalNotes || []), systemNote];
+                
                 return updatedOrder;
             }
             return order;
         }));
 
-        if (originalOrder) {
-            const user = users.find(u => u.email === originalOrder.user.email);
-            if (user && user.notificationPreferences?.orderStatus) sendUserNotification(user.id, `Your order #${orderId} has been updated to: ${status}.`);
+        const user = users.find(u => u.email === originalOrder.user.email);
+        if (user && user.notificationPreferences?.orderStatus) {
+            let notificationMessage = `Your order #${orderId} has been updated to: ${status}.`;
+            if (status === 'Delivered') {
+                notificationMessage = `Great news! Your order #${orderId} has been delivered. Thank you for shopping with us!`;
+            } else if (status === 'Cancelled') {
+                notificationMessage = `Your order #${orderId} has been cancelled.`;
+            }
+            sendUserNotification(user.id, notificationMessage, { view: 'orderHistory' });
         }
         
-        if (originalOrder && status === 'Cancelled' && originalOrder.paymentApproved && originalOrder.paymentMethod !== 'Cash on Delivery' && originalOrder.status !== 'Delivered') {
-             const user = users.find(u => u.email === originalOrder.user.email);
-             if (user) {
-                 await updateUserWallet(user.id, originalOrder.total, `Refund for cancelled order #${originalOrder.id}`);
-                 showNotification(`Order #${orderId} cancelled. Amount of ₹${originalOrder.total.toFixed(2)} refunded to user's wallet.`);
-                 return;
-             }
+        if (status === 'Cancelled' && originalOrder.paymentApproved && originalOrder.paymentMethod !== 'Cash on Delivery' && originalOrder.status !== 'Delivered') {
+            if (user) {
+                await updateUserWallet(user.id, originalOrder.total, `Refund for cancelled order #${originalOrder.id}`);
+                
+                setOrders(prev => prev.map(order => {
+                    if (order.id === orderId) {
+                        const refundNote = {
+                            note: `Auto-refund of ₹${originalOrder.total.toFixed(2)} processed to user wallet`,
+                            author: 'System',
+                            date: new Date()
+                        };
+                        return { ...order, internalNotes: [...(order.internalNotes || []), refundNote] };
+                    }
+                    return order;
+                }));
+                
+                showNotification(`Order #${orderId} cancelled. Amount of ₹${originalOrder.total.toFixed(2)} refunded to user's wallet.`);
+                return;
+            }
         }
         showNotification(`Order #${orderId} status updated to ${status}.`);
     }, [orders, users, sendUserNotification, updateUserWallet, showNotification]);

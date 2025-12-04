@@ -18,6 +18,9 @@ interface AdminOrderRowProps {
 
 const AdminOrderRow: React.FC<AdminOrderRowProps> = ({ order, updateOrderStatus, approveOrderPayment, onEdit, onViewReview, onViewDetails }) => {
     const [isScreenshotModalOpen, setIsScreenshotModalOpen] = useState(false);
+    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+    const [isApprovingPayment, setIsApprovingPayment] = useState(false);
 
     const statusOptions: OrderStatus[] = ['Pending', 'Approved', 'Packed', 'Out for Delivery', 'Delivered', 'Rejected', 'Cancelled'];
 
@@ -36,36 +39,79 @@ const AdminOrderRow: React.FC<AdminOrderRowProps> = ({ order, updateOrderStatus,
         action();
     };
 
-    const handleDownloadPdf = () => {
+    const handleStatusChange = async (newStatus: OrderStatus) => {
+        if (newStatus === order.status) return;
+        setIsUpdatingStatus(true);
+        try {
+            await updateOrderStatus(order.id, newStatus);
+        } finally {
+            setIsUpdatingStatus(false);
+        }
+    };
+
+    const handleApprovePayment = async () => {
+        setIsApprovingPayment(true);
+        try {
+            await approveOrderPayment(order.id);
+        } finally {
+            setIsApprovingPayment(false);
+        }
+    };
+
+    const handleDownloadPdf = async () => {
+        if (isGeneratingPdf) return;
+        setIsGeneratingPdf(true);
+        
         const invoiceElement = document.createElement('div');
         invoiceElement.style.position = 'absolute';
         invoiceElement.style.left = '-9999px';
-        invoiceElement.style.width = '800px'; 
+        invoiceElement.style.width = '800px';
+        invoiceElement.style.backgroundColor = '#ffffff';
         document.body.appendChild(invoiceElement);
 
-        const root = createRoot(invoiceElement);
-        root.render(<OrderInvoice order={order} />);
+        let root: ReturnType<typeof createRoot> | null = null;
 
-        setTimeout(() => {
-            html2canvas(invoiceElement).then((canvas: any) => {
-                const imgData = canvas.toDataURL('image/png');
-                const pdf = new jsPDF('p', 'mm', 'a4');
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-                pdf.save(`invoice-${order.id}.pdf`);
+        try {
+            root = createRoot(invoiceElement);
+            root.render(<OrderInvoice order={order} />);
 
-                root.unmount();
-                document.body.removeChild(invoiceElement);
+            await new Promise(resolve => setTimeout(resolve, 600));
+
+            const canvas = await html2canvas(invoiceElement, { 
+                scale: 2, 
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                logging: false
             });
-        }, 100);
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`invoice-${order.id}.pdf`);
+        } catch (error) {
+            console.error("Failed to generate PDF:", error);
+            alert("Could not generate PDF. Please try again.");
+        } finally {
+            setIsGeneratingPdf(false);
+            setTimeout(() => {
+                if (root) {
+                    try {
+                        root.unmount();
+                    } catch (e) {}
+                }
+                if (document.body.contains(invoiceElement)) {
+                    document.body.removeChild(invoiceElement);
+                }
+            }, 100);
+        }
     };
 
     const handlePrintInvoice = () => {
         const printWindow = window.open('', '_blank');
         if (printWindow) {
             printWindow.document.write('<html><head><title>Invoice</title>');
-            printWindow.document.write('<script src="https://cdn.tailwindcss.com"></script>'); // For styling
+            printWindow.document.write('<script src="https://cdn.tailwindcss.com"></script>');
             printWindow.document.write('</head><body class="p-8">');
             printWindow.document.write('<div id="print-root"></div>');
             printWindow.document.write('</body></html>');
@@ -78,18 +124,20 @@ const AdminOrderRow: React.FC<AdminOrderRowProps> = ({ order, updateOrderStatus,
                 setTimeout(() => {
                     printWindow.print();
                     printWindow.close();
-                }, 500); // Wait for render
+                }, 500);
             }
         }
     };
 
+    const isTerminalStatus = order.status === 'Delivered' || order.status === 'Rejected' || order.status === 'Cancelled';
+
     return (
         <>
-            <tr onClick={() => onViewDetails(order)} className="border-b border-gray-200 hover:bg-gray-50 text-sm cursor-pointer">
+            <tr onClick={() => onViewDetails(order)} className="border-b border-gray-200 hover:bg-gray-100 text-sm cursor-pointer transition-colors duration-150">
                 <td className="py-3 px-4 text-left font-mono text-sm">#{order.id}</td>
                 <td className="py-3 px-4 text-left">{order.date.toLocaleString()}</td>
                 <td className="py-3 px-4 text-left">
-                    <div>{order.user.name}</div>
+                    <div className="font-medium">{order.user.name}</div>
                     <div className="text-xs text-gray-500">{order.user.email}</div>
                     <div className="text-xs text-accent font-semibold mt-1">
                         {order.deliveryMethod}
@@ -99,59 +147,105 @@ const AdminOrderRow: React.FC<AdminOrderRowProps> = ({ order, updateOrderStatus,
                 <td className="py-3 px-4 text-left">
                     <div>{order.paymentMethod}</div>
                     {order.paymentMethod === 'Manual Transfer' && order.paymentScreenshot && (
-                        <button onClick={(e) => handleActionClick(e, () => setIsScreenshotModalOpen(true))} className="text-xs text-accent hover:underline ml-1">(View)</button>
+                        <button type="button" onClick={(e) => handleActionClick(e, () => setIsScreenshotModalOpen(true))} className="text-xs text-accent hover:underline font-medium">(View Receipt)</button>
                     )}
                     {order.paymentApproved && (
                         <div className="flex items-center gap-1 text-xs text-green-600 font-semibold mt-1">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                             </svg>
-                            <span>Payment Approved</span>
+                            <span>Approved</span>
                         </div>
                     )}
                 </td>
-                <td className="py-3 px-4 text-center">₹{order.total.toFixed(2)}</td>
+                <td className="py-3 px-4 text-center font-semibold">₹{order.total.toFixed(2)}</td>
                 <td className="py-3 px-4 text-center">
-                     <span className={`py-1 px-3 rounded-full text-xs font-semibold ${statusColor[order.status]}`}>
-                        {order.status}
+                    <span className={`py-1 px-3 rounded-full text-xs font-semibold transition-all duration-200 ${statusColor[order.status]} ${isUpdatingStatus ? 'opacity-50 animate-pulse' : ''}`}>
+                        {isUpdatingStatus ? 'Updating...' : order.status}
                     </span>
                 </td>
-                <td className="py-3 px-4 text-center">
-                    <div className="flex items-center justify-center space-x-2">
+                <td className="py-3 px-4">
+                    <div className="flex flex-wrap items-center justify-center gap-1">
                         {order.status === 'Pending' && !order.paymentApproved && (order.paymentMethod === 'Manual Transfer' || order.paymentMethod === 'Pay on Khata') && (
-                            <button onClick={(e) => handleActionClick(e, () => approveOrderPayment(order.id))} className="bg-green-100 text-green-700 font-semibold px-2 py-1 rounded text-xs hover:bg-green-200">
-                                Approve Payment
+                            <button 
+                                type="button" 
+                                onClick={(e) => handleActionClick(e, handleApprovePayment)} 
+                                disabled={isApprovingPayment}
+                                className="bg-green-500 text-white font-semibold px-2 py-1 rounded text-xs hover:bg-green-600 transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {isApprovingPayment ? (
+                                    <span className="flex items-center gap-1">
+                                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                        Approving...
+                                    </span>
+                                ) : 'Approve Pay'}
                             </button>
                         )}
+                        
+                        <button 
+                            type="button" 
+                            onClick={(e) => handleActionClick(e, () => onViewDetails(order))} 
+                            className="bg-blue-100 text-blue-700 font-semibold px-2 py-1 rounded text-xs hover:bg-blue-200 transition-colors duration-150"
+                            title="View Details"
+                        >
+                            Details
+                        </button>
+
+                        {order.status === 'Pending' && (
+                            <button 
+                                type="button" 
+                                onClick={(e) => handleActionClick(e, () => onEdit(order))} 
+                                className="bg-amber-100 text-amber-700 font-semibold px-2 py-1 rounded text-xs hover:bg-amber-200 transition-colors duration-150"
+                                title="Edit Order"
+                            >
+                                Edit
+                            </button>
+                        )}
+                        
                         {order.deliveryReview && (
-                             <button onClick={(e) => handleActionClick(e, () => onViewReview(order))} className="text-blue-500 hover:text-blue-700 p-1" title="View Delivery Review">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.08-3.083A6.973 6.973 0 012 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM4.416 14.584A6.983 6.983 0 0010 16c3.866 0 7-2.686 7-6s-3.134-6-7-6-7 2.686-7 6c0 1.31.378 2.523 1.025 3.584L4.416 14.584z" clipRule="evenodd" />
-                                </svg>
+                            <button 
+                                type="button" 
+                                onClick={(e) => handleActionClick(e, () => onViewReview(order))} 
+                                className="bg-purple-100 text-purple-700 font-semibold px-2 py-1 rounded text-xs hover:bg-purple-200 transition-colors duration-150"
+                                title="View Delivery Review"
+                            >
+                                Review
                             </button>
                         )}
+
                         <select
                             value={order.status}
                             onClick={(e) => e.stopPropagation()}
-                            onChange={(e) => updateOrderStatus(order.id, e.target.value as OrderStatus)}
-                            className="p-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-accent"
-                            disabled={order.status === 'Delivered' || order.status === 'Rejected' || order.status === 'Cancelled'}
+                            onChange={(e) => handleStatusChange(e.target.value as OrderStatus)}
+                            className={`p-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-accent transition-all duration-150 ${isUpdatingStatus ? 'opacity-50 cursor-wait' : ''} ${isTerminalStatus ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
+                            disabled={isTerminalStatus || isUpdatingStatus}
                         >
                             {statusOptions.map(status => (
                                 <option key={status} value={status}>{status}</option>
                             ))}
                         </select>
-                        {order.status === 'Pending' && (
-                             <button onClick={(e) => handleActionClick(e, () => onEdit(order))} className="text-accent hover:underline text-xs font-semibold">
-                                Edit
-                            </button>
-                        )}
-                         <button onClick={(e) => handleActionClick(e, handleDownloadPdf)} className="text-gray-500 hover:text-gray-700 p-1" title="Download Bill (PDF)">
-                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
+
+                        <button 
+                            type="button" 
+                            onClick={(e) => handleActionClick(e, handleDownloadPdf)} 
+                            disabled={isGeneratingPdf}
+                            className={`p-1 rounded transition-colors duration-150 ${isGeneratingPdf ? 'text-gray-400 cursor-wait' : 'text-gray-500 hover:text-primary hover:bg-gray-100'}`}
+                            title={isGeneratingPdf ? "Generating PDF..." : "Download Invoice (PDF)"}
+                        >
+                            {isGeneratingPdf ? (
+                                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                            ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                            )}
                         </button>
-                         <button onClick={(e) => handleActionClick(e, handlePrintInvoice)} className="text-gray-500 hover:text-gray-700 p-1" title="Print Invoice">
+                        <button 
+                            type="button" 
+                            onClick={(e) => handleActionClick(e, handlePrintInvoice)} 
+                            className="text-gray-500 hover:text-primary hover:bg-gray-100 p-1 rounded transition-colors duration-150" 
+                            title="Print Invoice"
+                        >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v3a2 2 0 002 2h6a2 2 0 002-2v-3h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" /></svg>
                         </button>
                     </div>
