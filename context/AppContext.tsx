@@ -1,8 +1,9 @@
 
 import React, { createContext, useContext } from 'react';
-import { Order, Product, Review, DeliveryReview, User, PaymentDetailsConfig, View, StoreInfoConfig, SupportTicket, SupportTicketStatus, SupportMessage, Expense, Coupon, OrderStatus, Notification, CartItem } from '../types';
+import { Order, Product, Review, DeliveryReview, User, PaymentDetailsConfig, StoreInfoConfig, SupportTicket, SupportTicketStatus, SupportMessage, Expense, Coupon, OrderStatus, Notification, CartItem } from '../types';
+import type { View } from '../types';
 
-export { View };
+export type { View };
 
 export interface AppContextType {
     // App State
