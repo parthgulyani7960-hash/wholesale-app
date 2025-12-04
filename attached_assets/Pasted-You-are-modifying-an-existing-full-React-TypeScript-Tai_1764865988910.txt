@@ -1,0 +1,124 @@
+You are modifying an existing full React + TypeScript + Tailwind SPA named Hind General Store.
+You will fix bugs, add missing logic, improve security, and extend features without breaking any existing features.
+
+Below is the complete app structure and all files (package.json, index.html, index.tsx, App.tsx, store, types, constants, components, admin files, etc.).
+Use these files as the base — DO NOT delete or rewrite the whole app.
+You must only fix, improve, and add missing logic.
+
+📌 MAIN GOALS (VERY IMPORTANT — FOLLOW EXACTLY)
+✔ 1. Fix all hidden bugs & TypeScript errors
+
+Make the entire application stable, remove white-screen issues, incorrect imports, missing props, runtime crashes, undefined map errors, and hydration issues.
+
+✔ 2. Add full Admin Order Editing workflow
+
+Admin must be able to:
+
+Edit order items
+
+Change quantity
+
+Remove / replace items
+
+Add reason for editing (required)
+
+Update total automatically
+
+Save edited order
+
+Store edit history inside order.internalNotes
+
+Trigger notification for user
+
+✔ 3. Improve Payment Info system
+
+Inside admin dashboard:
+
+Admin can edit UPI ID, QR code, bank details
+
+Admin can add “Name for UPI verification”
+
+User sees "Verified Name" automatically when selecting UPI mode
+
+Add validation to avoid wrong UPI or bank format
+
+✔ 4. Add Backup & Restore (safe, non-corrupt)
+
+Inside admin:
+
+Export all localStorage app data as a JSON file
+
+Import JSON file to restore full app state
+
+Validate JSON before restoring to prevent corruption
+
+✔ 5. Add Profit Tracking (Graph + Table)
+
+Add a new menu in admin:
+
+Profit Overview
+
+Daily / Weekly / Monthly graphs (use chart.js or lightweight alternative)
+
+Show:
+
+Total sales
+
+Total expenses
+
+Total profit
+
+Popular products
+
+Loss items
+
+Style must be clean & wide to understand clearly.
+
+✔ 6. Add Customer Warranty System
+
+For purchased items in an order:
+
+Admin can set warranty period (days/months)
+
+User can view warranty status in order history
+
+Warranty claim feature (user submits ticket)
+
+✔ 7. Add Customer Khata (Credit System)
+
+Add logic in user model + admin panel:
+
+Admin enables/disables credit
+
+Admin sets credit limit
+
+Admin sets due date
+
+App must show warning when due date passed
+
+Order placement should check:
+
+If user has khata enabled
+
+If the new order exceeds credit limit
+
+✔ 8. Security Fixes
+
+Because this app uses LocalStorage, add:
+
+Simple hashing for passwords (non-reversible)
+
+Mask sensitive fields in UI
+
+Validate all form inputs
+
+Sanitize text fields
+
+Fix UPI, IFSC, mobile validations
+
+Prevent XSS and unescaped HTML
+
+✔ 9. Fix Admin Dashboard
+
+Right now, AdminDashboardView is missing many required props & causes blank screens.
+Fix all missing props and complete the admin functionality.
