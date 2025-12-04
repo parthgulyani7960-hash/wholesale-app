@@ -39,22 +39,22 @@ const AdminOrderRow: React.FC<AdminOrderRowProps> = ({ order, updateOrderStatus,
         action();
     };
 
-    const handleStatusChange = async (newStatus: OrderStatus) => {
+    const handleStatusChange = (newStatus: OrderStatus) => {
         if (newStatus === order.status) return;
         setIsUpdatingStatus(true);
         try {
-            await updateOrderStatus(order.id, newStatus);
+            updateOrderStatus(order.id, newStatus);
         } finally {
-            setIsUpdatingStatus(false);
+            setTimeout(() => setIsUpdatingStatus(false), 300);
         }
     };
 
-    const handleApprovePayment = async () => {
+    const handleApprovePayment = () => {
         setIsApprovingPayment(true);
         try {
-            await approveOrderPayment(order.id);
+            approveOrderPayment(order.id);
         } finally {
-            setIsApprovingPayment(false);
+            setTimeout(() => setIsApprovingPayment(false), 300);
         }
     };
 

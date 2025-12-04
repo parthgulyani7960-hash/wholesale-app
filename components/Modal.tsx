@@ -1,5 +1,5 @@
 
-import React, { ReactNode, useEffect, useCallback, useState, Component, ErrorInfo } from 'react';
+import React, { ReactNode, useEffect, useCallback, useState, useRef } from 'react';
 
 interface ModalProps {
     isOpen?: boolean;
@@ -9,55 +9,10 @@ interface ModalProps {
     size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
-interface ErrorBoundaryState {
-    hasError: boolean;
-    error: Error | null;
-}
-
-class ModalErrorBoundary extends Component<{ children: ReactNode; onReset: () => void }, ErrorBoundaryState> {
-    constructor(props: { children: ReactNode; onReset: () => void }) {
-        super(props);
-        this.state = { hasError: false, error: null };
-    }
-
-    static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-        return { hasError: true, error };
-    }
-
-    componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-        console.error('Modal Error:', error, errorInfo);
-    }
-
-    render() {
-        if (this.state.hasError) {
-            return (
-                <div className="p-6 text-center">
-                    <div className="text-red-500 mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
-                    </div>
-                    <h4 className="text-lg font-semibold text-gray-800 mb-2">Something went wrong</h4>
-                    <p className="text-gray-600 text-sm mb-4">{this.state.error?.message || 'An unexpected error occurred'}</p>
-                    <button
-                        onClick={() => {
-                            this.setState({ hasError: false, error: null });
-                            this.props.onReset();
-                        }}
-                        className="bg-primary text-white px-4 py-2 rounded-md hover:bg-accent hover:text-primary transition-colors duration-200"
-                    >
-                        Close
-                    </button>
-                </div>
-            );
-        }
-        return this.props.children;
-    }
-}
-
 const Modal: React.FC<ModalProps> = ({ isOpen = false, onClose, title = '', children, size = 'md' }) => {
     const [isAnimating, setIsAnimating] = useState(false);
     const [shouldRender, setShouldRender] = useState(false);
+    const modalRef = useRef<HTMLDivElement>(null);
 
     const sizeClasses = {
         sm: 'max-w-sm',
@@ -87,20 +42,23 @@ const Modal: React.FC<ModalProps> = ({ isOpen = false, onClose, title = '', chil
     }, [isOpen]);
 
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
-        if (e.key === 'Escape' && isOpen) {
+        if (e.key === 'Escape' && isOpen && shouldRender) {
             onClose();
         }
-    }, [isOpen, onClose]);
+    }, [isOpen, shouldRender, onClose]);
 
     useEffect(() => {
-        document.addEventListener('keydown', handleKeyDown);
-        return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [handleKeyDown]);
+        if (shouldRender) {
+            document.addEventListener('keydown', handleKeyDown);
+            return () => document.removeEventListener('keydown', handleKeyDown);
+        }
+    }, [shouldRender, handleKeyDown]);
 
     if (!shouldRender) return null;
 
     return (
         <div
+            ref={modalRef}
             className={`fixed inset-0 bg-black z-[100] flex justify-center items-center p-4 transition-opacity duration-200 ${isAnimating ? 'bg-opacity-60' : 'bg-opacity-0'}`}
             onClick={onClose}
             role="dialog"
@@ -125,9 +83,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen = false, onClose, title = '', chil
                     </button>
                 </div>
                 <div className="p-6 overflow-y-auto flex-grow">
-                    <ModalErrorBoundary onReset={onClose}>
-                        {children}
-                    </ModalErrorBoundary>
+                    {children}
                 </div>
             </div>
         </div>

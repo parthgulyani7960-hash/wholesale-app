@@ -217,7 +217,7 @@ const SystemStatus: React.FC = () => {
 interface AdminDashboardViewProps {
     orders: Order[];
     users: User[];
-    updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
+    updateOrderStatus: (orderId: string, status: OrderStatus) => void;
     coupons: Coupon[];
 }
 

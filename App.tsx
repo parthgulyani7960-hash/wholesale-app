@@ -267,7 +267,7 @@ const App: React.FC = () => {
         }
     }, [users, updateUser, sendUserNotification, showNotification]);
 
-    const updateOrderStatus = useCallback(async (orderId: string, status: OrderStatus) => {
+    const updateOrderStatus = useCallback((orderId: string, status: OrderStatus) => {
         const originalOrder = orders.find(o => o.id === orderId);
         if (!originalOrder) {
             showNotification(`Order #${orderId} not found.`);
@@ -275,22 +275,27 @@ const App: React.FC = () => {
         }
         
         const previousStatus = originalOrder.status;
-        const statusChangeNote = `Status changed from "${previousStatus}" to "${status}"`;
+        const now = new Date();
+        
+        const notes: Array<{ note: string; author: string; date: Date }> = [
+            { note: `Status changed from "${previousStatus}" to "${status}"`, author: 'System', date: now }
+        ];
+        
+        if (status === 'Delivered') {
+            notes.push({ note: `Order delivered successfully`, author: 'System', date: now });
+        }
         
         setOrders(prev => prev.map(order => {
             if (order.id === orderId) {
-                const updatedOrder = { ...order, status };
+                const updatedOrder = { 
+                    ...order, 
+                    status,
+                    internalNotes: [...(order.internalNotes || []), ...notes]
+                };
                 
                 if (status === 'Delivered') {
-                    updatedOrder.deliveredDate = new Date();
+                    updatedOrder.deliveredDate = now;
                 }
-                
-                const systemNote = {
-                    note: statusChangeNote,
-                    author: 'System',
-                    date: new Date()
-                };
-                updatedOrder.internalNotes = [...(order.internalNotes || []), systemNote];
                 
                 return updatedOrder;
             }
@@ -310,21 +315,26 @@ const App: React.FC = () => {
         
         if (status === 'Cancelled' && originalOrder.paymentApproved && originalOrder.paymentMethod !== 'Cash on Delivery' && originalOrder.status !== 'Delivered') {
             if (user) {
-                await updateUserWallet(user.id, originalOrder.total, `Refund for cancelled order #${originalOrder.id}`);
-                
-                setOrders(prev => prev.map(order => {
-                    if (order.id === orderId) {
-                        const refundNote = {
-                            note: `Auto-refund of ₹${originalOrder.total.toFixed(2)} processed to user wallet`,
-                            author: 'System',
-                            date: new Date()
-                        };
-                        return { ...order, internalNotes: [...(order.internalNotes || []), refundNote] };
-                    }
-                    return order;
-                }));
-                
-                showNotification(`Order #${orderId} cancelled. Amount of ₹${originalOrder.total.toFixed(2)} refunded to user's wallet.`);
+                try {
+                    updateUserWallet(user.id, originalOrder.total, `Refund for cancelled order #${originalOrder.id}`);
+                    
+                    setOrders(prev => prev.map(order => {
+                        if (order.id === orderId) {
+                            const refundNote = {
+                                note: `Auto-refund of ₹${originalOrder.total.toFixed(2)} processed to user wallet`,
+                                author: 'System',
+                                date: new Date()
+                            };
+                            return { ...order, internalNotes: [...(order.internalNotes || []), refundNote] };
+                        }
+                        return order;
+                    }));
+                    
+                    showNotification(`Order #${orderId} cancelled. Amount of ₹${originalOrder.total.toFixed(2)} refunded to user's wallet.`);
+                } catch (error) {
+                    console.error('Refund failed:', error);
+                    showNotification(`Order #${orderId} cancelled. Refund processing failed - please handle manually.`);
+                }
                 return;
             }
         }

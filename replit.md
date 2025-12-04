@@ -39,6 +39,12 @@ The application runs on port 5000 and is configured for the Replit environment:
 The application supports GEMINI_API_KEY environment variable for potential AI features (currently configured but not actively used).
 
 ## Recent Changes
+- **2024-12-04**: Enhanced order management and UI improvements
+  - **Order Status Updates**: Added automatic internal notes when status changes, auto-refund to wallet for cancelled prepaid orders, user notifications with contextual messages
+  - **AdminOrderRow Component**: Added loading states for status updates, PDF generation, and payment approval with better button layouts and CSS transitions
+  - **Modal Component**: Fixed keyboard listener cleanup and improved animations with proper state management
+  - **Type Safety**: Fixed AppContextType to use synchronous updateOrderStatus pattern
+  
 - **2024-12-04**: Initial project import and Replit environment setup
   - Configured Vite to run on port 5000
   - Added HMR configuration for Replit proxy

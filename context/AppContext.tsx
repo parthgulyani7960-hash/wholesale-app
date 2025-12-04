@@ -59,7 +59,7 @@ export interface AppContextType {
     updateOrder: (updatedOrder: Order) => Promise<void>;
     approveOrderPayment: (orderId: string) => Promise<void>;
     cancelOrder: (orderId: string) => Promise<void>;
-    updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
+    updateOrderStatus: (orderId: string, status: OrderStatus) => void;
     addProduct: (product: Omit<Product, 'id' | 'reviews' | 'isListed'>) => Promise<void>;
     updateProduct: (product: Product) => Promise<void>;
     deleteProduct: (productId: number) => Promise<void>;
