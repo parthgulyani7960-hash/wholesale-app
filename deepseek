@@ -1,0 +1,338 @@
+// File: public/js/enhancements.js
+class WholesaleEnhancements {
+    constructor() {
+        // Use unique namespace to avoid conflicts
+        this.namespace = 'WHS_ENH_';
+        this.init();
+    }
+
+    init() {
+        console.log('Wholesale Enhancements loaded');
+        
+        // Wait for page to load
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.setupEnhancements());
+        } else {
+            this.setupEnhancements();
+        }
+    }
+
+    setupEnhancements() {
+        // 1. Add enhanced dashboard widgets if on dashboard
+        if (window.location.pathname.includes('dashboard')) {
+            this.addDashboardWidgets();
+        }
+
+        // 2. Add product quick actions
+        if (window.location.pathname.includes('products')) {
+            this.addProductQuickActions();
+        }
+
+        // 3. Add order enhancements
+        if (window.location.pathname.includes('orders')) {
+            this.addOrderEnhancements();
+        }
+
+        // 4. Add notification system
+        this.addNotificationSystem();
+
+        // 5. Add keyboard shortcuts
+        this.addKeyboardShortcuts();
+    }
+
+    addDashboardWidgets() {
+        // Create enhanced stats widget
+        const statsWidget = this.createStatsWidget();
+        
+        // Add to existing dashboard (find where to place it)
+        const dashboardContainer = document.querySelector('.dashboard-container, .main-content, [class*="dashboard"]');
+        
+        if (dashboardContainer) {
+            dashboardContainer.insertAdjacentHTML('afterbegin', statsWidget);
+            this.loadDashboardStats();
+        }
+    }
+
+    createStatsWidget() {
+        return `
+            <div class="whs-enh-stats" style="
+                background: white;
+                border-radius: 10px;
+                padding: 20px;
+                margin-bottom: 20px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            ">
+                <h3 style="margin-top: 0; color: #333;">Enhanced Analytics</h3>
+                <div class="whs-stats-grid" style="
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                    gap: 15px;
+                ">
+                    <div class="whs-stat-card" data-stat="todaySales">
+                        <div class="whs-stat-label">Today's Sales</div>
+                        <div class="whs-stat-value">₹0</div>
+                    </div>
+                    <div class="whs-stat-card" data-stat="pendingOrders">
+                        <div class="whs-stat-label">Pending Orders</div>
+                        <div class="whs-stat-value">0</div>
+                    </div>
+                    <div class="whs-stat-card" data-stat="lowStock">
+                        <div class="whs-stat-label">Low Stock</div>
+                        <div class="whs-stat-value">0</div>
+                    </div>
+                    <div class="whs-stat-card" data-stat="newCustomers">
+                        <div class="whs-stat-label">New Customers</div>
+                        <div class="whs-stat-value">0</div>
+                    </div>
+                </div>
+                <div class="whs-quick-actions" style="
+                    margin-top: 20px;
+                    display: flex;
+                    gap: 10px;
+                ">
+                    <button class="whs-btn" onclick="WHS_ENHANCEMENTS.quickAction('newOrder')" style="
+                        padding: 8px 16px;
+                        background: #007bff;
+                        color: white;
+                        border: none;
+                        border-radius: 5px;
+                        cursor: pointer;
+                    ">+ New Order</button>
+                    <button class="whs-btn" onclick="WHS_ENHANCEMENTS.quickAction('addProduct')" style="
+                        padding: 8px 16px;
+                        background: #28a745;
+                        color: white;
+                        border: none;
+                        border-radius: 5px;
+                        cursor: pointer;
+                    ">+ Add Product</button>
+                    <button class="whs-btn" onclick="WHS_ENHANCEMENTS.quickAction('printReport')" style="
+                        padding: 8px 16px;
+                        background: #6c757d;
+                        color: white;
+                        border: none;
+                        border-radius: 5px;
+                        cursor: pointer;
+                    ">📊 Generate Report</button>
+                </div>
+            </div>
+        `;
+    }
+
+    loadDashboardStats() {
+        // Fetch stats from your existing API
+        fetch('/api/dashboard/stats')
+            .then(res => res.json())
+            .then(data => {
+                // Update stat cards
+                if (data.todaySales) {
+                    document.querySelector('[data-stat="todaySales"] .whs-stat-value').textContent = 
+                        '₹' + data.todaySales.toLocaleString();
+                }
+                // ... update other stats
+            })
+            .catch(err => console.error('Error loading stats:', err));
+    }
+
+    addProductQuickActions() {
+        // Add barcode scanning button to product page
+        const productActions = document.querySelector('.product-actions, .btn-group, [class*="action"]');
+        if (productActions) {
+            const scanBtn = `
+                <button class="whs-scan-btn" onclick="WHS_ENHANCEMENTS.scanBarcode()" style="
+                    margin-left: 10px;
+                    padding: 8px 15px;
+                    background: #17a2b8;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    cursor: pointer;
+                ">
+                    📷 Scan Barcode
+                </button>
+            `;
+            productActions.insertAdjacentHTML('beforeend', scanBtn);
+        }
+    }
+
+    addOrderEnhancements() {
+        // Add bulk order actions
+        const orderHeader = document.querySelector('.order-header, h1, h2');
+        if (orderHeader) {
+            const bulkActions = `
+                <div class="whs-bulk-actions" style="margin-top: 10px;">
+                    <button onclick="WHS_ENHANCEMENTS.bulkUpdateStatus()" class="whs-btn-small" style="
+                        padding: 5px 10px;
+                        margin-right: 5px;
+                        background: #ffc107;
+                        border: none;
+                        border-radius: 3px;
+                        cursor: pointer;
+                    ">Bulk Update Status</button>
+                    <button onclick="WHS_ENHANCEMENTS.exportOrders()" class="whs-btn-small" style="
+                        padding: 5px 10px;
+                        background: #20c997;
+                        border: none;
+                        border-radius: 3px;
+                        cursor: pointer;
+                    ">📥 Export CSV</button>
+                </div>
+            `;
+            orderHeader.insertAdjacentHTML('afterend', bulkActions);
+        }
+    }
+
+    addNotificationSystem() {
+        // Add notification container
+        const notificationContainer = `
+            <div id="whs-notifications" style="
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 9999;
+                max-width: 300px;
+            "></div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', notificationContainer);
+    }
+
+    addKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // Ctrl + N = New Order
+            if (e.ctrlKey && e.key === 'n') {
+                e.preventDefault();
+                this.quickAction('newOrder');
+            }
+            
+            // Ctrl + P = Add Product
+            if (e.ctrlKey && e.key === 'p') {
+                e.preventDefault();
+                this.quickAction('addProduct');
+            }
+            
+            // Ctrl + S = Search
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                document.querySelector('input[type="search"], #search')?.focus();
+            }
+        });
+    }
+
+    showNotification(message, type = 'info') {
+        const notification = `
+            <div class="whs-notification" style="
+                background: ${type === 'success' ? '#d4edda' : type === 'error' ? '#f8d7da' : '#d1ecf1'};
+                color: ${type === 'success' ? '#155724' : type === 'error' ? '#721c24' : '#0c5460'};
+                padding: 12px 20px;
+                margin-bottom: 10px;
+                border-radius: 5px;
+                border-left: 4px solid ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8'};
+                animation: slideIn 0.3s ease;
+            ">
+                ${message}
+            </div>
+        `;
+        
+        const container = document.getElementById('whs-notifications');
+        if (container) {
+            container.insertAdjacentHTML('afterbegin', notification);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                const note = container.querySelector('.whs-notification');
+                if (note) note.remove();
+            }, 5000);
+        }
+    }
+
+    // Quick Actions
+    quickAction(action) {
+        switch(action) {
+            case 'newOrder':
+                window.location.href = '/orders/new';
+                break;
+            case 'addProduct':
+                window.location.href = '/products/new';
+                break;
+            case 'printReport':
+                this.generateReport();
+                break;
+        }
+    }
+
+    async generateReport() {
+        this.showNotification('Generating report...', 'info');
+        
+        // Fetch data from your existing APIs
+        const [ordersRes, productsRes] = await Promise.all([
+            fetch('/api/orders'),
+            fetch('/api/products')
+        ]);
+        
+        const orders = await ordersRes.json();
+        const products = await productsRes.json();
+        
+        // Generate CSV
+        const csv = this.convertToCSV(orders);
+        this.downloadCSV(csv, `report-${new Date().toISOString().split('T')[0]}.csv`);
+        
+        this.showNotification('Report generated successfully!', 'success');
+    }
+
+    convertToCSV(data) {
+        if (!data.length) return '';
+        
+        const headers = Object.keys(data[0]);
+        const csvRows = [
+            headers.join(','),
+            ...data.map(row => headers.map(header => JSON.stringify(row[header])).join(','))
+        ];
+        
+        return csvRows.join('\n');
+    }
+
+    downloadCSV(content, filename) {
+        const blob = new Blob([content], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        window.URL.revokeObjectURL(url);
+    }
+
+    // Barcode Scanner Simulation
+    scanBarcode() {
+        const barcode = prompt('Enter barcode or use scanner:', '');
+        if (barcode) {
+            // Search product by barcode
+            fetch(`/api/products?barcode=${barcode}`)
+                .then(res => res.json())
+                .then(product => {
+                    if (product) {
+                        this.showNotification(`Found: ${product.name}`, 'success');
+                        // Auto-fill product form if on add/edit page
+                        if (window.location.pathname.includes('products/new')) {
+                            this.fillProductForm(product);
+                        }
+                    } else {
+                        this.showNotification('Product not found', 'error');
+                    }
+                });
+        }
+    }
+
+    fillProductForm(product) {
+        // Auto-fill form fields
+        const nameField = document.querySelector('[name="name"], #productName, input[placeholder*="Name"]');
+        const priceField = document.querySelector('[name="price"], #price, input[placeholder*="Price"]');
+        
+        if (nameField) nameField.value = product.name;
+        if (priceField) priceField.value = product.price;
+    }
+}
+
+// Initialize enhancements
+if (typeof window !== 'undefined') {
+    window.WHS_ENHANCEMENTS = new WholesaleEnhancements();
+}
