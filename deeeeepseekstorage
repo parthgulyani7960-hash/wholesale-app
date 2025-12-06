@@ -1,1 +1,1152 @@
+// ================================================
+// INTEGRATED STORAGE SYSTEM FOR EXISTING BACKEND
+// File: integrated-storage.js
+// ================================================
 
+(function() {
+    'use strict';
+
+    console.log('🔗 Loading Integrated Storage System...');
+
+    // ==================== CONFIGURATION ====================
+    const CONFIG = {
+        // Your existing endpoints (from your system)
+        ENDPOINTS: {
+            products: '/api/products',
+            orders: '/api/orders',
+            customers: '/api/customers',
+            inventory: '/api/inventory',
+            payments: '/api/payments',      // From your Payment Upload Storage
+            notifications: '/api/notifications', // From your Notification Service
+            locations: '/api/locations',    // From your Geolocation API
+            backups: '/api/backups'         // From your Automatic Data Backups
+        },
+        
+        // Sync intervals (in milliseconds)
+        SYNC_INTERVALS: {
+            immediate: 5000,    // Fast sync for critical data
+            normal: 30000,      // Normal sync
+            background: 60000   // Background sync
+        },
+        
+        // Storage keys (unique to avoid conflicts)
+        STORAGE_KEYS: {
+            prefix: 'hgs_',     // Hind General Store prefix
+            queue: 'hgs_sync_queue',
+            cache: 'hgs_cache_',
+            settings: 'hgs_settings'
+        }
+    };
+
+    // ==================== MAIN STORAGE CLASS ====================
+    class IntegratedStorage {
+        constructor() {
+            this.config = CONFIG;
+            this.isOnline = navigator.onLine;
+            this.syncQueue = [];
+            this.isSyncing = false;
+            this.lastSyncTime = null;
+            this.deviceId = this.getDeviceId();
+            this.userEmail = this.getUserEmail(); // From your debug log: admin@indigeneral.com
+            
+            this.init();
+        }
+
+        init() {
+            console.log('⚙️ Initializing Integrated Storage...');
+            console.log('👤 User:', this.userEmail);
+            console.log('📱 Device:', this.deviceId);
+            
+            // Load existing queue
+            this.loadQueue();
+            
+            // Setup event listeners
+            this.setupEventListeners();
+            
+            // Start sync service
+            this.startSyncService();
+            
+            // Integrate with existing UI
+            this.integrateWithExistingUI();
+            
+            // Initialize monitoring
+            this.startMonitoring();
+            
+            console.log('✅ Integrated Storage Ready!');
+        }
+
+        // ==================== DEVICE & USER INFO ====================
+        getDeviceId() {
+            let deviceId = localStorage.getItem(`${CONFIG.STORAGE_KEYS.prefix}device_id`);
+            if (!deviceId) {
+                deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                localStorage.setItem(`${CONFIG.STORAGE_KEYS.prefix}device_id`, deviceId);
+                this.log('SYSTEM', `New device registered: ${deviceId}`);
+            }
+            return deviceId;
+        }
+
+        getUserEmail() {
+            // Extract from your existing auth system
+            return localStorage.getItem('user_email') || 
+                   localStorage.getItem('email') ||
+                   'admin@indigeneral.com'; // From your debug log
+        }
+
+        getAuthToken() {
+            // Get from your existing auth system
+            return localStorage.getItem('token') ||
+                   localStorage.getItem('access_token') ||
+                   localStorage.getItem('auth_token') ||
+                   document.cookie.match(/token=([^;]+)/)?.[1] ||
+                   '';
+        }
+
+        // ==================== CORE STORAGE METHODS ====================
+        async save(data, options = {}) {
+            const { type = 'products', priority = 'normal', metadata = {} } = options;
+            
+            this.log('SAVE', `Saving ${type}`, data);
+            
+            // Add metadata
+            const itemWithMeta = {
+                ...data,
+                _metadata: {
+                    type: type,
+                    deviceId: this.deviceId,
+                    userEmail: this.userEmail,
+                    timestamp: new Date().toISOString(),
+                    priority: priority,
+                    ...metadata
+                },
+                _id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                _status: 'pending',
+                _version: 1
+            };
+            
+            // Save locally immediately
+            this.saveToLocal(type, itemWithMeta);
+            
+            // Try immediate sync if online and high priority
+            if (this.isOnline && priority === 'high') {
+                await this.syncItemImmediately(type, itemWithMeta);
+            } else if (this.isOnline) {
+                // Queue for normal sync
+                this.addToQueue(type, 'create', itemWithMeta);
+            } else {
+                // Queue for offline sync
+                this.addToQueue(type, 'create', itemWithMeta);
+                this.showToast('Saved locally (offline)', 'warning');
+            }
+            
+            return itemWithMeta;
+        }
+
+        async fetch(type, query = {}, options = {}) {
+            const { cache = true, forceRefresh = false } = options;
+            
+            this.log('FETCH', `Fetching ${type}`, query);
+            
+            // Check cache first
+            if (cache && !forceRefresh) {
+                const cached = this.getFromCache(type, query);
+                if (cached) {
+                    this.log('CACHE', `Cache hit for ${type}`);
+                    return cached;
+                }
+            }
+            
+            // Try server fetch if online
+            if (this.isOnline) {
+                try {
+                    const serverData = await this.fetchFromServer(type, query);
+                    
+                    // Cache the result
+                    if (cache) {
+                        this.saveToCache(type, query, serverData);
+                    }
+                    
+                    // Merge with local unsynced data
+                    const localData = this.getLocalData(type);
+                    const unsynced = localData.filter(item => item._status === 'pending');
+                    
+                    return [...serverData, ...unsynced];
+                    
+                } catch (error) {
+                    this.log('ERROR', `Server fetch failed for ${type}:`, error);
+                    
+                    // Fallback to local data
+                    const localData = this.getLocalData(type, query);
+                    if (localData.length > 0) {
+                        this.showToast(`Using local data (server unreachable)`, 'warning');
+                        return localData;
+                    }
+                    
+                    throw error;
+                }
+            } else {
+                // Offline mode - use local data only
+                const localData = this.getLocalData(type, query);
+                if (localData.length === 0) {
+                    this.showToast('No data available offline', 'info');
+                }
+                return localData;
+            }
+        }
+
+        async update(type, id, updates, options = {}) {
+            this.log('UPDATE', `Updating ${type}:${id}`, updates);
+            
+            // Update locally
+            const updatedItem = this.updateLocalItem(type, id, {
+                ...updates,
+                _metadata: {
+                    ...(updates._metadata || {}),
+                    updatedAt: new Date().toISOString(),
+                    updatedBy: this.userEmail
+                },
+                _status: 'pending',
+                _version: (updates._version || 1) + 1
+            });
+            
+            // Queue for sync
+            this.addToQueue(type, 'update', updatedItem);
+            
+            // Return updated item
+            return updatedItem;
+        }
+
+        // ==================== SERVER COMMUNICATION ====================
+        async fetchFromServer(type, query = {}) {
+            const endpoint = CONFIG.ENDPOINTS[type];
+            if (!endpoint) {
+                throw new Error(`No endpoint configured for ${type}`);
+            }
+            
+            let url = endpoint;
+            if (Object.keys(query).length > 0) {
+                const params = new URLSearchParams(query);
+                url += `?${params.toString()}`;
+            }
+            
+            const response = await fetch(url, {
+                headers: this.getHeaders(),
+                signal: AbortSignal.timeout(10000) // 10 second timeout
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            
+            // Add metadata to server data
+            return data.map(item => ({
+                ...item,
+                _metadata: {
+                    source: 'server',
+                    fetchedAt: new Date().toISOString(),
+                    synced: true
+                },
+                _status: 'synced'
+            }));
+        }
+
+        async syncItemImmediately(type, item) {
+            try {
+                const endpoint = CONFIG.ENDPOINTS[type];
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: this.getHeaders(),
+                    body: JSON.stringify(item)
+                });
+                
+                if (response.ok) {
+                    const serverData = await response.json();
+                    
+                    // Update local item with server response
+                    this.updateLocalItem(type, item._id, {
+                        ...serverData,
+                        _status: 'synced',
+                        _metadata: {
+                            ...item._metadata,
+                            syncedAt: new Date().toISOString(),
+                            serverId: serverData.id || serverData._id
+                        }
+                    });
+                    
+                    this.log('SYNC', `Immediate sync successful for ${type}`);
+                    this.showToast('Synced to server', 'success');
+                    
+                    return serverData;
+                } else {
+                    throw new Error(`Sync failed: ${response.status}`);
+                }
+            } catch (error) {
+                this.log('ERROR', `Immediate sync failed:`, error);
+                this.addToQueue(type, 'create', item);
+                throw error;
+            }
+        }
+
+        getHeaders() {
+            const headers = {
+                'Content-Type': 'application/json',
+                'X-Device-ID': this.deviceId,
+                'X-User-Email': this.userEmail,
+                'X-App-Version': '1.0.0'
+            };
+            
+            const token = this.getAuthToken();
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            
+            return headers;
+        }
+
+        // ==================== LOCAL STORAGE MANAGEMENT ====================
+        saveToLocal(type, data) {
+            const key = `${CONFIG.STORAGE_KEYS.prefix}${type}`;
+            let items = JSON.parse(localStorage.getItem(key) || '[]');
+            
+            // Remove if exists
+            items = items.filter(item => item._id !== data._id);
+            
+            // Add new item
+            items.push(data);
+            
+            localStorage.setItem(key, JSON.stringify(items));
+            this.updateStatusIndicator();
+        }
+
+        getLocalData(type, query = {}) {
+            const key = `${CONFIG.STORAGE_KEYS.prefix}${type}`;
+            const items = JSON.parse(localStorage.getItem(key) || '[]');
+            
+            if (Object.keys(query).length === 0) return items;
+            
+            return items.filter(item => {
+                return Object.entries(query).every(([key, value]) => {
+                    return item[key] == value;
+                });
+            });
+        }
+
+        updateLocalItem(type, id, updates) {
+            const key = `${CONFIG.STORAGE_KEYS.prefix}${type}`;
+            let items = JSON.parse(localStorage.getItem(key) || '[]');
+            
+            const index = items.findIndex(item => item._id === id);
+            if (index !== -1) {
+                items[index] = { ...items[index], ...updates };
+            } else {
+                items.push({ _id: id, ...updates });
+            }
+            
+            localStorage.setItem(key, JSON.stringify(items));
+            this.updateStatusIndicator();
+            
+            return items[index] || items[items.length - 1];
+        }
+
+        // ==================== CACHE SYSTEM ====================
+        saveToCache(type, query, data) {
+            const cacheKey = `${CONFIG.STORAGE_KEYS.cache}${type}_${JSON.stringify(query)}`;
+            const cacheItem = {
+                data: data,
+                timestamp: Date.now(),
+                expiresAt: Date.now() + (5 * 60 * 1000) // 5 minutes
+            };
+            
+            localStorage.setItem(cacheKey, JSON.stringify(cacheItem));
+        }
+
+        getFromCache(type, query) {
+            const cacheKey = `${CONFIG.STORAGE_KEYS.cache}${type}_${JSON.stringify(query)}`;
+            const cached = localStorage.getItem(cacheKey);
+            
+            if (!cached) return null;
+            
+            const cacheItem = JSON.parse(cached);
+            
+            // Check if cache is expired
+            if (Date.now() > cacheItem.expiresAt) {
+                localStorage.removeItem(cacheKey);
+                return null;
+            }
+            
+            return cacheItem.data;
+        }
+
+        clearCache() {
+            Object.keys(localStorage).forEach(key => {
+                if (key.startsWith(CONFIG.STORAGE_KEYS.cache)) {
+                    localStorage.removeItem(key);
+                }
+            });
+            this.log('SYSTEM', 'Cache cleared');
+        }
+
+        // ==================== SYNC QUEUE MANAGEMENT ====================
+        addToQueue(type, operation, data) {
+            const queueItem = {
+                id: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                type: type,
+                operation: operation,
+                data: data,
+                attempts: 0,
+                createdAt: new Date().toISOString(),
+                lastAttempt: null
+            };
+            
+            this.syncQueue.push(queueItem);
+            this.saveQueue();
+            this.updateStatusIndicator();
+            
+            this.log('QUEUE', `Added to queue: ${type} ${operation}`);
+        }
+
+        async processQueue() {
+            if (this.isSyncing || !this.isOnline || this.syncQueue.length === 0) {
+                return;
+            }
+            
+            this.isSyncing = true;
+            this.log('SYNC', `Processing ${this.syncQueue.length} queued items`);
+            
+            const successful = [];
+            const failed = [];
+            
+            for (const item of [...this.syncQueue]) {
+                try {
+                    let result;
+                    const endpoint = CONFIG.ENDPOINTS[item.type];
+                    
+                    if (!endpoint) {
+                        throw new Error(`No endpoint for ${item.type}`);
+                    }
+                    
+                    switch (item.operation) {
+                        case 'create':
+                            result = await fetch(endpoint, {
+                                method: 'POST',
+                                headers: this.getHeaders(),
+                                body: JSON.stringify(item.data)
+                            });
+                            break;
+                            
+                        case 'update':
+                            const serverId = item.data._metadata?.serverId || item.data.id;
+                            result = await fetch(`${endpoint}/${serverId}`, {
+                                method: 'PUT',
+                                headers: this.getHeaders(),
+                                body: JSON.stringify(item.data)
+                            });
+                            break;
+                            
+                        case 'delete':
+                            const deleteId = item.data._metadata?.serverId || item.data.id;
+                            result = await fetch(`${endpoint}/${deleteId}`, {
+                                method: 'DELETE',
+                                headers: this.getHeaders()
+                            });
+                            break;
+                    }
+                    
+                    if (result && result.ok) {
+                        // Remove from queue
+                        this.syncQueue = this.syncQueue.filter(q => q.id !== item.id);
+                        successful.push(item);
+                        
+                        // Update local status
+                        if (item.data._id) {
+                            this.updateLocalItem(item.type, item.data._id, {
+                                _status: 'synced',
+                                _metadata: {
+                                    ...item.data._metadata,
+                                    syncedAt: new Date().toISOString()
+                                }
+                            });
+                        }
+                        
+                    } else {
+                        throw new Error(`HTTP ${result?.status || 'No response'}`);
+                    }
+                    
+                } catch (error) {
+                    this.log('ERROR', `Queue item failed:`, error);
+                    item.attempts++;
+                    item.lastAttempt = new Date().toISOString();
+                    
+                    if (item.attempts >= 3) {
+                        // Give up after 3 attempts
+                        this.syncQueue = this.syncQueue.filter(q => q.id !== item.id);
+                        failed.push(item);
+                        this.log('SYSTEM', `Giving up on ${item.type} after 3 attempts`);
+                    }
+                }
+                
+                // Small delay between items
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            this.saveQueue();
+            this.isSyncing = false;
+            this.lastSyncTime = new Date().toISOString();
+            
+            // Log results
+            if (successful.length > 0) {
+                this.log('SYNC', `Successfully synced ${successful.length} items`);
+                this.showToast(`Synced ${successful.length} items`, 'success');
+            }
+            
+            if (failed.length > 0) {
+                this.log('WARN', `${failed.length} items failed permanently`);
+                this.showToast(`${failed.length} items failed to sync`, 'error');
+            }
+            
+            this.updateStatusIndicator();
+        }
+
+        // ==================== UI INTEGRATION ====================
+        integrateWithExistingUI() {
+            // Add status indicator
+            this.addStatusIndicator();
+            
+            // Add to your existing debug log
+            this.integrateWithDebugLog();
+            
+            // Add sync controls to existing UI
+            this.addSyncControls();
+            
+            // Monitor your existing forms
+            this.monitorExistingForms();
+        }
+
+        addStatusIndicator() {
+            // Check if indicator already exists
+            if (document.getElementById('hgs-storage-indicator')) return;
+            
+            const indicator = document.createElement('div');
+            indicator.id = 'hgs-storage-indicator';
+            indicator.innerHTML = `
+                <div style="
+                    position: fixed;
+                    bottom: 20px;
+                    right: 20px;
+                    padding: 8px 16px;
+                    background: #4CAF50;
+                    color: white;
+                    border-radius: 20px;
+                    font-size: 13px;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                    z-index: 99999;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    transition: all 0.3s;
+                    border: 2px solid rgba(255,255,255,0.3);
+                ">
+                    <span id="hgs-status-icon">✓</span>
+                    <span id="hgs-status-text">Synced</span>
+                    <span id="hgs-queue-badge" style="
+                        background: rgba(255,255,255,0.3);
+                        padding: 2px 8px;
+                        border-radius: 10px;
+                        font-size: 11px;
+                        display: none;
+                    ">0</span>
+                </div>
+            `;
+            
+            document.body.appendChild(indicator);
+            
+            // Click handler
+            indicator.onclick = () => this.showStoragePanel();
+            
+            // Initial update
+            this.updateStatusIndicator();
+        }
+
+        updateStatusIndicator() {
+            const indicator = document.getElementById('hgs-storage-indicator');
+            if (!indicator) return;
+            
+            const icon = document.getElementById('hgs-status-icon');
+            const text = document.getElementById('hgs-status-text');
+            const badge = document.getElementById('hgs-queue-badge');
+            
+            if (!this.isOnline) {
+                indicator.style.background = '#f44336';
+                icon.textContent = '⚠';
+                text.textContent = 'Offline';
+                badge.style.display = 'none';
+            } else if (this.syncQueue.length > 0) {
+                indicator.style.background = '#FF9800';
+                icon.textContent = '🔄';
+                text.textContent = 'Syncing';
+                badge.textContent = this.syncQueue.length;
+                badge.style.display = 'inline';
+            } else {
+                indicator.style.background = '#4CAF50';
+                icon.textContent = '✓';
+                text.textContent = 'Synced';
+                badge.style.display = 'none';
+            }
+        }
+
+        integrateWithDebugLog() {
+            // Add storage logs to your existing debug log
+            const originalConsoleLog = console.log;
+            console.log = function(...args) {
+                originalConsoleLog.apply(console, args);
+                
+                // If it's a storage-related log, add to debug display
+                if (args[0] && typeof args[0] === 'string' && 
+                    (args[0].includes('[STORAGE]') || 
+                     args[0].includes('[SYNC]') ||
+                     args[0].includes('[QUEUE]'))) {
+                    
+                    // Find your debug log container
+                    const debugLog = document.querySelector('[class*="debug"], [class*="log"], [id*="debug"], [id*="log"]');
+                    if (debugLog) {
+                        const logEntry = document.createElement('div');
+                        logEntry.style.cssText = `
+                            padding: 4px 8px;
+                            margin: 2px 0;
+                            background: #f5f5f5;
+                            border-left: 3px solid #2196F3;
+                            font-family: monospace;
+                            font-size: 12px;
+                        `;
+                        logEntry.textContent = args.join(' ');
+                        debugLog.appendChild(logEntry);
+                        
+                        // Keep only last 10 entries
+                        const entries = debugLog.querySelectorAll('div');
+                        if (entries.length > 10) {
+                            entries[0].remove();
+                        }
+                    }
+                }
+            };
+        }
+
+        addSyncControls() {
+            // Add sync button to your existing UI
+            setTimeout(() => {
+                // Look for existing control panels
+                const controlPanels = document.querySelectorAll('[class*="control"], [class*="panel"], [class*="settings"]');
+                
+                controlPanels.forEach(panel => {
+                    if (!panel.querySelector('.hgs-sync-control')) {
+                        const syncControl = document.createElement('div');
+                        syncControl.className = 'hgs-sync-control';
+                        syncControl.innerHTML = `
+                            <div style="
+                                padding: 15px;
+                                background: white;
+                                border-radius: 8px;
+                                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                                margin: 10px 0;
+                                border: 1px solid #e0e0e0;
+                            ">
+                                <div style="font-weight: 600; margin-bottom: 10px; color: #333;">
+                                    📦 Storage Sync
+                                </div>
+                                <div style="display: flex; gap: 10px;">
+                                    <button onclick="window.hgsStorage.forceSync()" style="
+                                        flex: 1;
+                                        padding: 8px 12px;
+                                        background: #2196F3;
+                                        color: white;
+                                        border: none;
+                                        border-radius: 4px;
+                                        cursor: pointer;
+                                        font-size: 13px;
+                                    ">🔄 Sync Now</button>
+                                    <button onclick="window.hgsStorage.clearCache()" style="
+                                        flex: 1;
+                                        padding: 8px 12px;
+                                        background: #9E9E9E;
+                                        color: white;
+                                        border: none;
+                                        border-radius: 4px;
+                                        cursor: pointer;
+                                        font-size: 13px;
+                                    ">🗑️ Clear Cache</button>
+                                </div>
+                                <div style="margin-top: 10px; font-size: 12px; color: #666;">
+                                    ${this.syncQueue.length} items pending sync
+                                </div>
+                            </div>
+                        `;
+                        panel.appendChild(syncControl);
+                    }
+                });
+            }, 2000);
+        }
+
+        monitorExistingForms() {
+            // Monitor your existing product/order forms
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach(mutation => {
+                    mutation.addedNodes.forEach(node => {
+                        if (node.nodeType === 1 && node.querySelector) {
+                            const forms = node.querySelectorAll('form');
+                            forms.forEach(form => {
+                                this.attachStorageToForm(form);
+                            });
+                        }
+                    });
+                });
+            });
+            
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+        }
+
+        attachStorageToForm(form) {
+            if (form.classList.contains('hgs-storage-enabled')) return;
+            
+            form.classList.add('hgs-storage-enabled');
+            
+            // Add auto-save option
+            const autoSaveOption = document.createElement('div');
+            autoSaveOption.style.cssText = `
+                margin-top: 15px;
+                padding: 10px;
+                background: #E3F2FD;
+                border-radius: 6px;
+                border-left: 4px solid #2196F3;
+            `;
+            autoSaveOption.innerHTML = `
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" class="hgs-auto-save" checked>
+                    <span style="font-size: 14px; color: #1565C0;">
+                        💾 Auto-save with offline support
+                    </span>
+                </label>
+                <div style="font-size: 12px; color: #546E7A; margin-top: 5px;">
+                    Data saved locally and synced when online
+                </div>
+            `;
+            
+            form.appendChild(autoSaveOption);
+            
+            // Intercept form submit
+            const originalSubmit = form.onsubmit;
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                
+                try {
+                    const formData = new FormData(form);
+                    const data = Object.fromEntries(formData.entries());
+                    
+                    // Determine type from form ID or class
+                    const type = this.detectFormType(form);
+                    
+                    // Save using integrated storage
+                    const saved = await this.save(data, {
+                        type: type,
+                        priority: 'high'
+                    });
+                    
+                    // Show success message
+                    this.showToast(`${type} saved successfully!`, 'success');
+                    
+                    // Call original submit if exists
+                    if (originalSubmit) {
+                        originalSubmit.call(form, e);
+                    }
+                    
+                    return saved;
+                    
+                } catch (error) {
+                    this.showToast(`Error saving: ${error.message}`, 'error');
+                    console.error('Form save error:', error);
+                }
+            };
+        }
+
+        detectFormType(form) {
+            // Detect form type from ID, class, or fields
+            const id = form.id || '';
+            const className = form.className || '';
+            const fields = Array.from(form.elements).map(el => el.name);
+            
+            if (id.includes('product') || className.includes('product') || fields.includes('product')) {
+                return 'products';
+            } else if (id.includes('order') || className.includes('order') || fields.includes('order')) {
+                return 'orders';
+            } else if (id.includes('customer') || className.includes('customer') || fields.includes('customer')) {
+                return 'customers';
+            } else if (id.includes('payment') || className.includes('payment') || fields.includes('payment')) {
+                return 'payments';
+            }
+            
+            return 'products'; // Default
+        }
+
+        // ==================== SYNC SERVICE ====================
+        startSyncService() {
+            // Immediate sync (5 seconds)
+            setInterval(() => {
+                if (this.isOnline && this.syncQueue.length > 0) {
+                    this.processQueue();
+                }
+            }, CONFIG.SYNC_INTERVALS.immediate);
+            
+            // Background sync (30 seconds)
+            setInterval(() => {
+                if (this.isOnline) {
+                    this.backgroundSync();
+                }
+            }, CONFIG.SYNC_INTERVALS.normal);
+            
+            // Health check (60 seconds)
+            setInterval(() => {
+                this.healthCheck();
+            }, CONFIG.SYNC_INTERVALS.background);
+        }
+
+        async backgroundSync() {
+            // Sync all data types in background
+            const types = ['products', 'orders', 'customers', 'inventory'];
+            
+            for (const type of types) {
+                try {
+                    const serverData = await this.fetchFromServer(type, { limit: 50 });
+                    this.saveToCache(type, {}, serverData);
+                    this.log('SYNC', `Background sync completed for ${type}`);
+                } catch (error) {
+                    // Silent fail for background sync
+                }
+            }
+        }
+
+        healthCheck() {
+            const health = {
+                online: this.isOnline,
+                queueLength: this.syncQueue.length,
+                storageUsed: this.getStorageUsage(),
+                lastSync: this.lastSyncTime,
+                cacheSize: this.getCacheSize()
+            };
+            
+            this.log('HEALTH', 'Storage health check:', health);
+            
+            // Alert if queue is too large
+            if (health.queueLength > 50) {
+                this.showToast('Sync queue is large. Consider manual sync.', 'warning');
+            }
+        }
+
+        // ==================== UTILITY METHODS ====================
+        setupEventListeners() {
+            window.addEventListener('online', () => {
+                this.isOnline = true;
+                this.log('SYSTEM', 'Device online');
+                this.showToast('Back online. Syncing data...', 'success');
+                this.processQueue();
+            });
+            
+            window.addEventListener('offline', () => {
+                this.isOnline = false;
+                this.log('SYSTEM', 'Device offline');
+                this.showToast('You are offline. Data saved locally.', 'warning');
+            });
+        }
+
+        startMonitoring() {
+            // Monitor storage usage
+            setInterval(() => {
+                const usage = this.getStorageUsage();
+                if (usage > 5) { // More than 5MB
+                    this.showToast('Storage usage high. Consider clearing cache.', 'warning');
+                }
+            }, 60000);
+        }
+
+        getStorageUsage() {
+            let total = 0;
+            for (let key in localStorage) {
+                if (key.startsWith(CONFIG.STORAGE_KEYS.prefix)) {
+                    total += localStorage[key].length * 2;
+                }
+            }
+            return (total / 1024 / 1024).toFixed(2); // MB
+        }
+
+        getCacheSize() {
+            let count = 0;
+            for (let key in localStorage) {
+                if (key.startsWith(CONFIG.STORAGE_KEYS.cache)) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        saveQueue() {
+            localStorage.setItem(CONFIG.STORAGE_KEYS.queue, JSON.stringify(this.syncQueue));
+        }
+
+        loadQueue() {
+            const saved = localStorage.getItem(CONFIG.STORAGE_KEYS.queue);
+            this.syncQueue = saved ? JSON.parse(saved) : [];
+        }
+
+        // ==================== LOGGING ====================
+        log(level, ...args) {
+            const timestamp = new Date().toLocaleTimeString();
+            const message = `[${timestamp}] [STORAGE:${level}] ${args.join(' ')}`;
+            
+            console.log(message);
+            
+            // Add to your existing debug log
+            const debugLog = document.querySelector('[class*="debug"], [class*="log"]');
+            if (debugLog) {
+                const entry = document.createElement('div');
+                entry.textContent = message;
+                entry.style.cssText = `
+                    padding: 4px 8px;
+                    margin: 2px 0;
+                    background: ${level === 'ERROR' ? '#FFEBEE' : 
+                                level === 'WARN' ? '#FFF3E0' : '#E8F5E9'};
+                    border-left: 3px solid ${level === 'ERROR' ? '#F44336' : 
+                                         level === 'WARN' ? '#FF9800' : '#4CAF50'};
+                    font-family: monospace;
+                    font-size: 12px;
+                `;
+                debugLog.appendChild(entry);
+                
+                // Keep only last 10 entries
+                const entries = debugLog.querySelectorAll('div');
+                if (entries.length > 10) {
+                    entries[0].remove();
+                }
+            }
+        }
+
+        showToast(message, type = 'info') {
+            // Create or use your existing toast system
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 12px 20px;
+                background: ${type === 'success' ? '#4CAF50' : 
+                           type === 'warning' ? '#FF9800' : 
+                           type === 'error' ? '#F44336' : '#2196F3'};
+                color: white;
+                border-radius: 6px;
+                box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+                z-index: 100000;
+                animation: slideIn 0.3s ease;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                max-width: 300px;
+            `;
+            toast.textContent = message;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        showStoragePanel() {
+            const panel = document.createElement('div');
+            panel.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                padding: 30px;
+                border-radius: 12px;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+                z-index: 100001;
+                min-width: 400px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                border: 1px solid #e0e0e0;
+            `;
+            
+            const stats = {
+                online: this.isOnline,
+                queue: this.syncQueue.length,
+                storage: this.getStorageUsage(),
+                cache: this.getCacheSize(),
+                device: this.deviceId,
+                user: this.userEmail
+            };
+            
+            panel.innerHTML = `
+                <h3 style="margin: 0 0 25px 0; color: #333; font-size: 20px;">
+                    📦 Integrated Storage System
+                </h3>
+                
+                <div style="margin-bottom: 25px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div style="padding: 15px; background: #f5f5f5; border-radius: 8px;">
+                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">Status</div>
+                            <div style="font-size: 18px; font-weight: 600; color: ${stats.online ? '#4CAF50' : '#F44336'}">
+                                ${stats.online ? 'Online' : 'Offline'}
+                            </div>
+                        </div>
+                        
+                        <div style="padding: 15px; background: #f5f5f5; border-radius: 8px;">
+                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">Pending Sync</div>
+                            <div style="font-size: 18px; font-weight: 600; color: ${stats.queue > 0 ? '#FF9800' : '#4CAF50'}">
+                                ${stats.queue} items
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-top: 20px;">
+                        <div style="font-size: 14px; color: #666; margin-bottom: 10px;">System Information</div>
+                        <div style="font-size: 12px; color: #333; line-height: 1.6;">
+                            <div>👤 User: ${stats.user}</div>
+                            <div>📱 Device: ${stats.device}</div>
+                            <div>💾 Storage: ${stats.storage} MB used</div>
+                            <div>🗃️ Cache: ${stats.cache} items cached</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px; border-top: 1px solid #eee; padding-top: 25px;">
+                    <button onclick="window.hgsStorage.forceSync()" style="
+                        flex: 1;
+                        padding: 12px;
+                        background: #2196F3;
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        font-size: 14px;
+                    ">🔄 Force Sync</button>
+                    
+                    <button onclick="this.parentNode.parentNode.remove()" style="
+                        flex: 1;
+                        padding: 12px;
+                        background: #9E9E9E;
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        font-size: 14px;
+                    ">Close</button>
+                </div>
+            `;
+            
+            document.body.appendChild(panel);
+            
+            // Close on outside click
+            panel.onclick = (e) => e.stopPropagation();
+            document.onclick = () => panel.remove();
+        }
+
+        // ==================== PUBLIC API ====================
+        forceSync() {
+            this.showToast('Manual sync started...', 'info');
+            this.processQueue();
+        }
+
+        getStatus() {
+            return {
+                online: this.isOnline,
+                queueLength: this.syncQueue.length,
+                storageUsage: this.getStorageUsage(),
+                cacheSize: this.getCacheSize(),
+                deviceId: this.deviceId,
+                userEmail: this.userEmail,
+                lastSync: this.lastSyncTime
+            };
+        }
+    }
+
+    // ==================== GLOBAL INITIALIZATION ====================
+    
+    // Initialize when page loads
+    window.addEventListener('load', () => {
+        console.log('🚀 Starting Integrated Storage System...');
+        
+        // Initialize storage
+        window.hgsStorage = new IntegratedStorage();
+        
+        // Add global API
+        window.HGSStorage = {
+            save: (data, options) => window.hgsStorage.save(data, options),
+            fetch: (type, query, options) => window.hgsStorage.fetch(type, query, options),
+            update: (type, id, updates, options) => window.hgsStorage.update(type, id, updates, options),
+            status: () => window.hgsStorage.getStatus(),
+            sync: () => window.hgsStorage.forceSync(),
+            clearCache: () => window.hgsStorage.clearCache(),
+            showPanel: () => window.hgsStorage.showStoragePanel()
+        };
+        
+        // Add test function
+        window.testHGSStorage = async () => {
+            console.log('🧪 Testing Integrated Storage...');
+            
+            const testData = {
+                name: "Test Product " + new Date().toLocaleTimeString(),
+                price: Math.floor(Math.random() * 1000) + 100,
+                quantity: Math.floor(Math.random() * 100) + 1,
+                category: "Test",
+                timestamp: new Date().toISOString()
+            };
+            
+            const saved = await HGSStorage.save(testData, {
+                type: 'products',
+                priority: 'high'
+            });
+            
+            console.log('Saved:', saved);
+            
+            const status = HGSStorage.status();
+            console.log('Status:', status);
+            
+            alert(`✅ Integrated Storage Test Complete!\nSaved: ${testData.name}\nStatus: ${status.online ? 'Online' : 'Offline'}\nQueue: ${status.queueLength} items`);
+        };
+        
+        // Add test button
+        setTimeout(() => {
+            const testBtn = document.createElement('button');
+            testBtn.textContent = 'Test Storage';
+            testBtn.style.cssText = `
+                position: fixed;
+                bottom: 70px;
+                right: 20px;
+                padding: 10px 16px;
+                background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                z-index: 99999;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                font-size: 14px;
+                font-weight: 600;
+                box-shadow: 0 4px 15px rgba(106, 17, 203, 0.3);
+            `;
+            testBtn.onclick = window.testHGSStorage;
+            document.body.appendChild(testBtn);
+        }, 1500);
+        
+        console.log('🎉 Integrated Storage System Ready!');
+        console.log('Use: window.HGSStorage or window.hgsStorage');
+    });
+
+})();
