@@ -1,179 +1,104 @@
-// ====================================================
-// AUTO-DETECTING STORAGE SYSTEM FOR WHOLESALE APP
-// ====================================================
-// Save as: auto-storage.js
-// Add: <script src="auto-storage.js"></script>
+// ================================================
+// COMPLETE WHOLESALE STORAGE SYSTEM
+// File: wholesale-storage.js
+// Just add: <script src="wholesale-storage.js"></script>
+// ================================================
 
 (function() {
     'use strict';
 
-    console.log('🚀 Auto-Storage System Loading...');
+    console.log('🛒 Wholesale Storage System Loading...');
 
-    // ==================== AUTO-DETECT YOUR API ====================
-    class APIDetector {
-        static detectEndpoints() {
-            console.log('🔍 Detecting your API endpoints...');
-            
-            // Common endpoint patterns in wholesale apps
-            const commonPatterns = {
-                products: ['/api/products', '/products', '/api/items', '/items', '/api/goods'],
-                orders: ['/api/orders', '/orders', '/api/sales', '/sales'],
-                customers: ['/api/customers', '/customers', '/api/clients'],
-                inventory: ['/api/inventory', '/inventory', '/api/stock'],
-                categories: ['/api/categories', '/categories'],
-                users: ['/api/users', '/users', '/api/auth']
-            };
-
-            // Try to find active endpoints by checking network requests
-            const detectedEndpoints = {};
-            
-            // Override fetch to detect endpoints
-            const originalFetch = window.fetch;
-            window.fetch = function(...args) {
-                const url = args[0];
-                
-                // Log API calls for detection
-                if (typeof url === 'string' && url.includes('/api/')) {
-                    console.log(`📡 Detected API call: ${url}`);
-                    
-                    // Auto-detect endpoint type
-                    for (const [type, patterns] of Object.entries(commonPatterns)) {
-                        for (const pattern of patterns) {
-                            if (url.includes(pattern)) {
-                                if (!detectedEndpoints[type]) {
-                                    detectedEndpoints[type] = url.split('?')[0]; // Remove query params
-                                    console.log(`✅ Auto-detected ${type} endpoint: ${detectedEndpoints[type]}`);
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                return originalFetch.apply(this, args);
-            };
-
-            // Restore original fetch after detection period
-            setTimeout(() => {
-                window.fetch = originalFetch;
-                console.log('✅ API detection complete');
-            }, 3000);
-
-            return detectedEndpoints;
-        }
-    }
-
-    // ==================== INTELLIGENT STORAGE MANAGER ====================
-    class SmartStorage {
+    // ==================== MAIN STORAGE CLASS ====================
+    class WholesaleStorage {
         constructor() {
-            this.endpoints = {};
+            // Auto-detect endpoints from your dashboard
+            this.endpoints = this.detectEndpoints();
+            
+            // Storage queues
             this.syncQueue = [];
             this.isOnline = navigator.onLine;
-            this.isInitialized = false;
-            this.authToken = null;
-            this.userId = null;
+            this.authToken = this.getAuthToken();
             
-            // Auto-detect configuration
-            this.autoDetectConfig();
-            
+            // Initialize
             this.init();
         }
 
-        autoDetectConfig() {
-            console.log('🤖 Auto-configuring storage system...');
-            
-            // 1. Detect auth token from common locations
-            this.authToken = this.findAuthToken();
-            
-            // 2. Detect user ID
-            this.userId = localStorage.getItem('userId') || 
-                         localStorage.getItem('user_id') || 
-                         'user_' + Date.now();
-            
-            // 3. Detect API endpoints
-            this.endpoints = APIDetector.detectEndpoints();
-            
-            // 4. If no endpoints detected, use defaults based on common patterns
-            if (Object.keys(this.endpoints).length === 0) {
-                console.log('⚠️ No endpoints auto-detected, using defaults');
-                this.endpoints = {
-                    products: '/api/products',
-                    orders: '/api/orders',
-                    customers: '/api/customers',
-                    inventory: '/api/inventory'
-                };
-            }
-            
-            console.log('✅ Auto-config complete:', {
-                hasAuth: !!this.authToken,
-                userId: this.userId,
-                endpoints: this.endpoints
-            });
+        detectEndpoints() {
+            // Based on your dashboard, these are likely your endpoints
+            return {
+                products: '/api/products',
+                orders: '/api/orders', 
+                customers: '/api/customers',
+                users: '/api/users',
+                categories: '/api/categories',
+                inventory: '/api/inventory',
+                coupons: '/api/coupons',
+                expenses: '/api/expenses'
+            };
         }
 
-        findAuthToken() {
-            // Check common token storage locations
-            const tokenLocations = [
-                localStorage.getItem('token'),
-                localStorage.getItem('jwt'),
-                localStorage.getItem('access_token'),
-                localStorage.getItem('auth_token'),
-                sessionStorage.getItem('token'),
-                document.cookie.match(/token=([^;]+)/)?.[1],
-                document.cookie.match(/jwt=([^;]+)/)?.[1],
-                document.cookie.match(/auth=([^;]+)/)?.[1]
-            ];
-            
-            return tokenLocations.find(t => t) || '';
+        getAuthToken() {
+            // Check common token locations in wholesale apps
+            return localStorage.getItem('token') ||
+                   localStorage.getItem('authToken') ||
+                   localStorage.getItem('access_token') ||
+                   document.cookie.match(/token=([^;]+)/)?.[1] ||
+                   '';
         }
 
         init() {
-            console.log('🔧 Initializing Smart Storage...');
+            console.log('⚙️ Initializing storage for wholesale dashboard...');
             
-            // Set up online/offline detection
+            // Setup event listeners
             window.addEventListener('online', () => this.handleOnline());
             window.addEventListener('offline', () => this.handleOffline());
             
             // Load existing queue
             this.loadQueue();
             
-            // Auto-sync every 20 seconds
-            setInterval(() => this.autoSync(), 20000);
+            // Start auto-sync
+            setInterval(() => this.syncQueueToServer(), 30000);
             
-            // Create UI indicators
-            this.createUI();
+            // Add UI components
+            this.addStorageUI();
             
-            // Hook into existing app events
-            this.hookIntoApp();
+            // Hook into your existing app
+            this.integrateWithDashboard();
             
-            this.isInitialized = true;
-            console.log('✅ Smart Storage Ready!');
-            
-            // Show welcome message
-            this.showMessage('Smart Storage System Activated!', 'success');
+            console.log('✅ Wholesale Storage Ready!');
         }
 
-        // ==================== SMART CRUD OPERATIONS ====================
-        async smartSave(type, data) {
-            console.log(`💾 Smart saving ${type}:`, data);
+        // ==================== CORE STORAGE METHODS ====================
+        async saveProduct(productData) {
+            return await this.saveItem('products', productData);
+        }
+
+        async saveOrder(orderData) {
+            return await this.saveItem('orders', orderData);
+        }
+
+        async saveCustomer(customerData) {
+            return await this.saveItem('customers', customerData);
+        }
+
+        async saveItem(type, data) {
+            console.log(`💾 Saving ${type}:`, data);
             
-            // Generate unique ID
             const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            
-            // Prepare data with metadata
             const itemData = {
                 ...data,
                 _id: localId,
                 _type: type,
                 _createdAt: new Date().toISOString(),
-                _updatedAt: new Date().toISOString(),
                 _synced: false,
                 _local: true
             };
             
-            // Save locally immediately
-            this.saveLocally(type, itemData);
+            // 1. Save locally immediately
+            this.saveToLocalStorage(type, itemData);
             
-            // Try to save to server if online
+            // 2. Try to save to server if online
             if (this.isOnline) {
                 try {
                     const serverResult = await this.saveToServer(type, data);
@@ -186,82 +111,55 @@
                         _serverId: serverResult.id || serverResult._id
                     });
                     
-                    this.showMessage(`${type} saved to server!`, 'success');
+                    this.showNotification(`${type} saved to server!`, 'success');
                     return serverResult;
                     
                 } catch (error) {
-                    console.log(`⚠️ Server save failed for ${type}, keeping local copy`);
+                    console.log(`Server save failed, queuing for sync:`, error);
                     this.queueForSync(type, 'create', itemData);
                     return itemData;
                 }
             } else {
                 // Queue for later sync
                 this.queueForSync(type, 'create', itemData);
-                this.showMessage('Saved locally (offline). Will sync when online.', 'warning');
+                this.showNotification('Saved locally (offline)', 'warning');
                 return itemData;
             }
         }
 
-        async smartFetch(type, query = {}) {
-            console.log(`🔍 Smart fetching ${type}`, query);
-            
+        async getProducts(query = {}) {
+            return await this.getItems('products', query);
+        }
+
+        async getOrders(query = {}) {
+            return await this.getItems('orders', query);
+        }
+
+        async getItems(type, query = {}) {
             // Try server first if online
             if (this.isOnline) {
                 try {
                     const serverData = await this.fetchFromServer(type, query);
-                    
-                    // Cache server data locally
                     this.cacheLocally(type, serverData);
                     
-                    // Merge with any local unsynced data
-                    const localData = this.getLocalData(type);
-                    const unsyncedLocal = localData.filter(item => item._local && !item._synced);
+                    // Merge with local unsynced data
+                    const localData = this.getLocalItems(type);
+                    const unsynced = localData.filter(item => item._local && !item._synced);
                     
-                    return [...serverData, ...unsyncedLocal];
-                    
+                    return [...serverData, ...unsynced];
                 } catch (error) {
-                    console.log(`⚠️ Server fetch failed, using local cache for ${type}`);
+                    console.log(`Server fetch failed, using local:`, error);
                 }
             }
             
             // Fallback to local data
-            return this.getLocalData(type, query);
-        }
-
-        async smartUpdate(type, id, updates) {
-            console.log(`✏️ Smart updating ${type}:${id}`, updates);
-            
-            const updateData = {
-                ...updates,
-                _updatedAt: new Date().toISOString(),
-                _synced: false
-            };
-            
-            // Update locally
-            this.updateLocalItem(type, id, updateData);
-            
-            // Try server update if online
-            if (this.isOnline) {
-                try {
-                    await this.updateOnServer(type, id, updates);
-                    this.updateLocalItem(type, id, { _synced: true });
-                    this.showMessage(`${type} updated on server!`, 'success');
-                } catch (error) {
-                    console.log(`⚠️ Server update failed, queuing for sync`);
-                    this.queueForSync(type, 'update', { id, ...updates });
-                }
-            } else {
-                this.queueForSync(type, 'update', { id, ...updates });
-                this.showMessage('Updated locally (offline)', 'warning');
-            }
+            return this.getLocalItems(type, query);
         }
 
         // ==================== SERVER COMMUNICATION ====================
         async saveToServer(type, data) {
             const endpoint = this.endpoints[type];
-            if (!endpoint) {
-                throw new Error(`No endpoint configured for ${type}`);
-            }
+            if (!endpoint) throw new Error(`No endpoint for ${type}`);
             
             const response = await fetch(endpoint, {
                 method: 'POST',
@@ -293,38 +191,21 @@
             return await response.json();
         }
 
-        async updateOnServer(type, id, data) {
-            const endpoint = this.endpoints[type];
-            if (!endpoint) throw new Error(`No endpoint for ${type}`);
+        getHeaders() {
+            const headers = {
+                'Content-Type': 'application/json'
+            };
             
-            // Check if it's a local ID
-            const isLocalId = id.startsWith('local_');
-            
-            if (isLocalId) {
-                // Find the server ID
-                const localData = this.getLocalData(type);
-                const item = localData.find(item => item._id === id);
-                if (item && item._serverId) {
-                    id = item._serverId;
-                } else {
-                    throw new Error('Item not yet synced to server');
-                }
+            if (this.authToken) {
+                headers['Authorization'] = `Bearer ${this.authToken}`;
             }
             
-            const response = await fetch(`${endpoint}/${id}`, {
-                method: 'PUT',
-                headers: this.getHeaders(),
-                body: JSON.stringify(data)
-            });
-            
-            if (!response.ok) throw new Error(`Update error: ${response.status}`);
-            
-            return await response.json();
+            return headers;
         }
 
-        // ==================== LOCAL STORAGE MANAGEMENT ====================
-        saveLocally(type, data) {
-            const key = `smart_${type}`;
+        // ==================== LOCAL STORAGE ====================
+        saveToLocalStorage(type, data) {
+            const key = `ws_${type}`;
             let items = JSON.parse(localStorage.getItem(key) || '[]');
             
             // Remove if exists
@@ -337,9 +218,9 @@
             this.updateUI();
         }
 
-        getLocalData(type, query = {}) {
-            const key = `smart_${type}`;
-            const items = JSON.parse(localStorage.getItem(key) || '[]');
+        getLocalItems(type, query = {}) {
+            const key = `ws_${type}`;
+            let items = JSON.parse(localStorage.getItem(key) || '[]');
             
             if (Object.keys(query).length === 0) return items;
             
@@ -351,7 +232,7 @@
         }
 
         updateLocalItem(type, id, updates) {
-            const key = `smart_${type}`;
+            const key = `ws_${type}`;
             let items = JSON.parse(localStorage.getItem(key) || '[]');
             
             items = items.map(item => 
@@ -363,7 +244,7 @@
         }
 
         cacheLocally(type, dataArray) {
-            const key = `smart_${type}_cache`;
+            const key = `ws_${type}_cache`;
             const cache = {
                 data: dataArray,
                 timestamp: Date.now()
@@ -374,7 +255,7 @@
         // ==================== SYNC QUEUE ====================
         queueForSync(type, operation, data) {
             const queueItem = {
-                id: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                id: `sync_${Date.now()}`,
                 type: type,
                 operation: operation,
                 data: data,
@@ -387,38 +268,34 @@
             this.updateUI();
         }
 
-        async autoSync() {
+        async syncQueueToServer() {
             if (!this.isOnline || this.syncQueue.length === 0) return;
             
-            console.log(`🔄 Auto-syncing ${this.syncQueue.length} items...`);
+            console.log(`🔄 Syncing ${this.syncQueue.length} items...`);
             
             for (const item of [...this.syncQueue]) {
                 try {
-                    switch (item.operation) {
-                        case 'create':
-                            await this.saveToServer(item.type, item.data);
-                            break;
-                        case 'update':
-                            await this.updateOnServer(item.type, item.data.id, item.data);
-                            break;
+                    if (item.operation === 'create') {
+                        await this.saveToServer(item.type, item.data);
                     }
                     
-                    // Remove from queue on success
+                    // Mark as synced
+                    if (item.data._id) {
+                        this.updateLocalItem(item.type, item.data._id, {
+                            _synced: true,
+                            _local: false
+                        });
+                    }
+                    
+                    // Remove from queue
                     this.syncQueue = this.syncQueue.filter(q => q.id !== item.id);
                     
-                    // Mark as synced in local storage
-                    if (item.data._id) {
-                        this.updateLocalItem(item.type, item.data._id, { _synced: true, _local: false });
-                    }
-                    
                 } catch (error) {
-                    console.log(`⚠️ Sync failed for ${item.type}:`, error);
+                    console.log(`Sync failed:`, error);
                     item.attempts++;
                     
-                    // Remove after too many attempts
                     if (item.attempts >= 3) {
                         this.syncQueue = this.syncQueue.filter(q => q.id !== item.id);
-                        console.log(`❌ Giving up on ${item.type} after 3 attempts`);
                     }
                 }
             }
@@ -427,41 +304,41 @@
             this.updateUI();
             
             if (this.syncQueue.length === 0) {
-                this.showMessage('All data synced!', 'success');
+                this.showNotification('All data synced!', 'success');
             }
         }
 
         // ==================== UI COMPONENTS ====================
-        createUI() {
-            // Create status indicator
+        addStorageUI() {
+            // Add status indicator to dashboard
             const indicator = document.createElement('div');
-            indicator.id = 'smart-storage-indicator';
+            indicator.id = 'ws-storage-indicator';
             indicator.innerHTML = `
                 <div style="
                     position: fixed;
                     bottom: 20px;
                     right: 20px;
-                    padding: 10px 15px;
+                    padding: 8px 15px;
                     background: #28a745;
                     color: white;
                     border-radius: 20px;
-                    font-size: 14px;
-                    font-family: Arial, sans-serif;
+                    font-size: 13px;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                     box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-                    z-index: 99999;
+                    z-index: 9999;
                     cursor: pointer;
                     display: flex;
                     align-items: center;
                     gap: 8px;
                     transition: all 0.3s;
                 ">
-                    <span id="smart-status-icon">✓</span>
-                    <span id="smart-status-text">Synced</span>
-                    <span id="smart-queue-count" style="
+                    <span id="ws-status-icon">✓</span>
+                    <span id="ws-status-text">Synced</span>
+                    <span id="ws-queue-count" style="
                         background: rgba(255,255,255,0.2);
                         padding: 2px 8px;
                         border-radius: 10px;
-                        font-size: 12px;
+                        font-size: 11px;
                         display: none;
                     ">0</span>
                 </div>
@@ -469,29 +346,29 @@
             
             document.body.appendChild(indicator);
             
-            // Add notification container
-            const notificationContainer = document.createElement('div');
-            notificationContainer.id = 'smart-notifications';
-            notificationContainer.style.cssText = `
+            // Add notification area
+            const notifications = document.createElement('div');
+            notifications.id = 'ws-notifications';
+            notifications.style.cssText = `
                 position: fixed;
                 top: 20px;
                 right: 20px;
-                z-index: 99998;
-                max-width: 350px;
+                z-index: 9998;
+                max-width: 300px;
             `;
-            document.body.appendChild(notificationContainer);
+            document.body.appendChild(notifications);
             
-            // Update UI immediately
+            // Update UI
             this.updateUI();
         }
 
         updateUI() {
-            const indicator = document.getElementById('smart-storage-indicator');
+            const indicator = document.getElementById('ws-storage-indicator');
             if (!indicator) return;
             
-            const icon = document.getElementById('smart-status-icon');
-            const text = document.getElementById('smart-status-text');
-            const count = document.getElementById('smart-queue-count');
+            const icon = document.getElementById('ws-status-icon');
+            const text = document.getElementById('ws-status-text');
+            const count = document.getElementById('ws-queue-count');
             
             if (!this.isOnline) {
                 indicator.style.background = '#dc3545';
@@ -515,56 +392,47 @@
             indicator.onclick = () => this.showStatusPanel();
         }
 
-        showMessage(message, type = 'info') {
-            const container = document.getElementById('smart-notifications');
+        showNotification(message, type = 'info') {
+            const container = document.getElementById('ws-notifications');
             if (!container) return;
-            
-            const colors = {
-                success: '#d4edda',
-                warning: '#fff3cd',
-                error: '#f8d7da',
-                info: '#d1ecf1'
-            };
-            
-            const textColors = {
-                success: '#155724',
-                warning: '#856404',
-                error: '#721c24',
-                info: '#0c5460'
-            };
             
             const notification = document.createElement('div');
             notification.style.cssText = `
-                background: ${colors[type] || colors.info};
-                color: ${textColors[type] || textColors.info};
-                padding: 12px 20px;
+                background: ${type === 'success' ? '#d4edda' : 
+                           type === 'warning' ? '#fff3cd' : 
+                           type === 'error' ? '#f8d7da' : '#d1ecf1'};
+                color: ${type === 'success' ? '#155724' : 
+                        type === 'warning' ? '#856404' : 
+                        type === 'error' ? '#721c24' : '#0c5460'};
+                padding: 12px 16px;
                 margin-bottom: 10px;
-                border-radius: 8px;
+                border-radius: 6px;
                 border-left: 4px solid ${type === 'success' ? '#28a745' : 
                                      type === 'warning' ? '#ffc107' : 
                                      type === 'error' ? '#dc3545' : '#17a2b8'};
-                animation: slideIn 0.3s ease;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                animation: wsSlideIn 0.3s ease;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                font-size: 14px;
             `;
             notification.textContent = message;
             
             container.appendChild(notification);
             
-            // Auto-remove after 5 seconds
+            // Auto-remove
             setTimeout(() => {
                 if (notification.parentNode) {
                     notification.style.opacity = '0';
                     notification.style.transform = 'translateX(100px)';
                     setTimeout(() => notification.remove(), 300);
                 }
-            }, 5000);
+            }, 4000);
             
-            // Add CSS animation if not exists
-            if (!document.querySelector('#smart-storage-animations')) {
+            // Add animation CSS
+            if (!document.querySelector('#ws-animations')) {
                 const style = document.createElement('style');
-                style.id = 'smart-storage-animations';
+                style.id = 'ws-animations';
                 style.textContent = `
-                    @keyframes slideIn {
+                    @keyframes wsSlideIn {
                         from {
                             opacity: 0;
                             transform: translateX(100px);
@@ -580,13 +448,6 @@
         }
 
         showStatusPanel() {
-            const status = {
-                online: this.isOnline,
-                queue: this.syncQueue.length,
-                storage: this.calculateStorage(),
-                endpoints: Object.keys(this.endpoints).length
-            };
-            
             const panel = document.createElement('div');
             panel.style.cssText = `
                 position: fixed;
@@ -596,53 +457,70 @@
                 background: white;
                 padding: 25px;
                 border-radius: 10px;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-                z-index: 100000;
-                min-width: 300px;
-                font-family: Arial, sans-serif;
+                box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+                z-index: 10000;
+                min-width: 350px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                border: 1px solid #e0e0e0;
             `;
             
             panel.innerHTML = `
-                <h3 style="margin-top: 0; color: #333;">📦 Smart Storage Status</h3>
-                <div style="margin: 15px 0;">
-                    <div style="display: flex; justify-content: space-between; margin: 8px 0;">
-                        <span>Status:</span>
-                        <span style="color: ${status.online ? '#28a745' : '#dc3545'}; font-weight: bold;">
-                            ${status.online ? 'Online ✓' : 'Offline ⚠'}
+                <h3 style="margin: 0 0 20px 0; color: #333; font-size: 18px;">
+                    🛒 Storage Status
+                </h3>
+                
+                <div style="margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                        <span style="color: #666;">Status:</span>
+                        <span style="color: ${this.isOnline ? '#28a745' : '#dc3545'}; font-weight: 500;">
+                            ${this.isOnline ? 'Online' : 'Offline'}
                         </span>
                     </div>
-                    <div style="display: flex; justify-content: space-between; margin: 8px 0;">
-                        <span>Pending Sync:</span>
-                        <span style="color: ${status.queue > 0 ? '#ffc107' : '#28a745'}; font-weight: bold;">
-                            ${status.queue} items
+                    
+                    <div style="display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                        <span style="color: #666;">Pending Sync:</span>
+                        <span style="color: ${this.syncQueue.length > 0 ? '#ff9800' : '#4caf50'}; font-weight: 500;">
+                            ${this.syncQueue.length} items
                         </span>
                     </div>
-                    <div style="display: flex; justify-content: space-between; margin: 8px 0;">
-                        <span>Storage Used:</span>
-                        <span>${status.storage}</span>
+                    
+                    <div style="display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                        <span style="color: #666;">Local Products:</span>
+                        <span>${this.getLocalItems('products').length}</span>
                     </div>
-                    <div style="display: flex; justify-content: space-between; margin: 8px 0;">
-                        <span>API Endpoints:</span>
-                        <span>${status.endpoints} detected</span>
+                    
+                    <div style="display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0; border-bottom: 1px solid #f0f0f0;">
+                        <span style="color: #666;">Local Orders:</span>
+                        <span>${this.getLocalItems('orders').length}</span>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; margin: 10px 0; padding: 8px 0;">
+                        <span style="color: #666;">Storage Used:</span>
+                        <span>${this.getStorageUsage()}</span>
                     </div>
                 </div>
-                <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
-                    <button onclick="window.smartStorage.forceSync()" style="
-                        padding: 10px 20px;
-                        background: #007bff;
+                
+                <div style="display: flex; gap: 10px; margin-top: 25px; border-top: 1px solid #eee; padding-top: 20px;">
+                    <button onclick="window.wsStorage.syncNow()" style="
+                        flex: 1;
+                        padding: 10px 15px;
+                        background: #2196f3;
                         color: white;
                         border: none;
-                        border-radius: 5px;
+                        border-radius: 6px;
                         cursor: pointer;
-                        margin-right: 10px;
-                    ">🔄 Force Sync</button>
+                        font-weight: 500;
+                    ">🔄 Sync Now</button>
+                    
                     <button onclick="this.parentNode.parentNode.remove()" style="
-                        padding: 10px 20px;
-                        background: #6c757d;
+                        flex: 1;
+                        padding: 10px 15px;
+                        background: #9e9e9e;
                         color: white;
                         border: none;
-                        border-radius: 5px;
+                        border-radius: 6px;
                         cursor: pointer;
+                        font-weight: 500;
                     ">Close</button>
                 </div>
             `;
@@ -654,103 +532,140 @@
             document.onclick = () => panel.remove();
         }
 
-        // ==================== INTEGRATION HOOKS ====================
-        hookIntoApp() {
-            console.log('🔗 Hooking into your app...');
+        // ==================== DASHBOARD INTEGRATION ====================
+        integrateWithDashboard() {
+            console.log('🔗 Integrating with your dashboard...');
             
-            // Hook into common wholesale app patterns
-            
-            // 1. Intercept form submissions
-            const originalSubmit = HTMLFormElement.prototype.submit;
-            HTMLFormElement.prototype.submit = function() {
-                console.log('📝 Form submission detected');
-                // Your custom logic here
-                return originalSubmit.apply(this, arguments);
-            };
-            
-            // 2. Listen for custom events
-            document.addEventListener('productSaved', (e) => {
-                console.log('🎯 Product saved event detected:', e.detail);
-                this.smartSave('products', e.detail);
-            });
-            
-            document.addEventListener('orderCreated', (e) => {
-                console.log('🎯 Order created event detected:', e.detail);
-                this.smartSave('orders', e.detail);
-            });
-            
-            // 3. Override common save functions if they exist
-            this.overrideGlobalFunctions();
-            
-            // 4. Add storage buttons to common UI elements
-            this.addStorageButtons();
-        }
-
-        overrideGlobalFunctions() {
-            // Override common wholesale app functions
-            const overrides = ['saveProduct', 'createOrder', 'addCustomer', 'updateInventory'];
-            
-            overrides.forEach(funcName => {
-                if (window[funcName]) {
-                    const original = window[funcName];
-                    window[funcName] = async (...args) => {
-                        console.log(`🔄 Intercepted ${funcName} call`);
-                        try {
-                            // Call original function
-                            const result = await original.apply(this, args);
-                            
-                            // Also save to smart storage
-                            const type = funcName.replace('save', '')
-                                                .replace('create', '')
-                                                .replace('add', '')
-                                                .replace('update', '')
-                                                .toLowerCase() + 's';
-                            if (this.endpoints[type]) {
-                                this.smartSave(type, args[0]);
-                            }
-                            
-                            return result;
-                        } catch (error) {
-                            console.error(`Error in ${funcName}:`, error);
-                            throw error;
-                        }
-                    };
-                    console.log(`✅ Hooked into ${funcName}`);
-                }
-            });
-        }
-
-        addStorageButtons() {
-            // Add smart buttons to common locations
-            
-            // Look for product forms
+            // Wait for dashboard to load
             setTimeout(() => {
-                const productForms = document.querySelectorAll('form, [class*="product"], [id*="product"]');
-                productForms.forEach(form => {
-                    if (!form.querySelector('.smart-save-btn')) {
-                        const btn = document.createElement('button');
-                        btn.className = 'smart-save-btn';
-                        btn.textContent = '💾 Smart Save';
-                        btn.style.cssText = `
-                            margin-top: 10px;
-                            padding: 8px 15px;
-                            background: #28a745;
-                            color: white;
-                            border: none;
-                            border-radius: 5px;
-                            cursor: pointer;
-                        `;
-                        btn.onclick = (e) => {
-                            e.preventDefault();
-                            this.smartSaveFormData(form, 'products');
-                        };
-                        form.appendChild(btn);
-                    }
-                });
+                this.addStorageButtons();
+                this.monitorDashboardChanges();
             }, 2000);
         }
 
-        smartSaveFormData(form, type) {
+        addStorageButtons() {
+            // Add storage button to Products page
+            const productsHeader = document.querySelector('h1, h2, h3, [class*="header"], [class*="title"]');
+            if (productsHeader && productsHeader.textContent.includes('Product')) {
+                if (!document.querySelector('.ws-storage-btn')) {
+                    const btn = document.createElement('button');
+                    btn.className = 'ws-storage-btn';
+                    btn.innerHTML = '💾 Smart Save';
+                    btn.style.cssText = `
+                        margin-left: 15px;
+                        padding: 8px 16px;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        font-weight: 500;
+                        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+                        transition: transform 0.2s;
+                    `;
+                    btn.onmouseenter = () => btn.style.transform = 'translateY(-2px)';
+                    btn.onmouseleave = () => btn.style.transform = 'translateY(0)';
+                    
+                    btn.onclick = () => {
+                        this.saveCurrentProduct();
+                    };
+                    
+                    productsHeader.parentNode.insertBefore(btn, productsHeader.nextSibling);
+                }
+            }
+            
+            // Add storage info to dashboard stats
+            this.addToDashboardStats();
+        }
+
+        addToDashboardStats() {
+            // Find the "Store Overview" section
+            const overviewSection = document.querySelector('[class*="overview"], [class*="stats"], [class*="dashboard"]');
+            if (overviewSection) {
+                const storageStat = document.createElement('div');
+                storageStat.innerHTML = `
+                    <div style="
+                        background: white;
+                        border-radius: 10px;
+                        padding: 20px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                        margin: 15px 0;
+                        border-left: 4px solid #2196f3;
+                    ">
+                        <div style="font-size: 14px; color: #666; margin-bottom: 8px;">Storage Status</div>
+                        <div style="font-size: 24px; font-weight: bold; color: #333;">
+                            ${this.getLocalItems('products').length} Products
+                        </div>
+                        <div style="font-size: 14px; color: #888; margin-top: 5px;">
+                            ${this.syncQueue.length} pending sync • ${this.isOnline ? 'Online' : 'Offline'}
+                        </div>
+                    </div>
+                `;
+                
+                overviewSection.appendChild(storageStat);
+            }
+        }
+
+        monitorDashboardChanges() {
+            // Monitor for new products/orders being added
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach(mutation => {
+                    if (mutation.addedNodes.length) {
+                        mutation.addedNodes.forEach(node => {
+                            if (node.nodeType === 1) { // Element node
+                                // Check if it's a product form
+                                if (node.querySelector && (
+                                    node.querySelector('[name*="product"]') ||
+                                    node.querySelector('[id*="product"]') ||
+                                    node.querySelector('[class*="product"]')
+                                )) {
+                                    this.attachToProductForm(node);
+                                }
+                            }
+                        });
+                    }
+                });
+            });
+            
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+        }
+
+        attachToProductForm(formElement) {
+            const form = formElement.querySelector('form') || formElement;
+            if (form && !form.querySelector('.ws-auto-save')) {
+                const checkbox = document.createElement('div');
+                checkbox.innerHTML = `
+                    <label style="display: flex; align-items: center; gap: 8px; margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+                        <input type="checkbox" class="ws-auto-save-checkbox">
+                        <span style="font-size: 14px; color: #333;">💾 Auto-save to local storage</span>
+                    </label>
+                `;
+                form.appendChild(checkbox);
+                
+                // Auto-save on form submit
+                form.addEventListener('submit', (e) => {
+                    if (form.querySelector('.ws-auto-save-checkbox').checked) {
+                        this.saveFormData(form, 'products');
+                    }
+                });
+            }
+        }
+
+        saveCurrentProduct() {
+            // Find product form data
+            const form = document.querySelector('form');
+            if (form) {
+                this.saveFormData(form, 'products');
+            } else {
+                this.showNotification('No form found to save', 'warning');
+            }
+        }
+
+        saveFormData(form, type) {
             const formData = new FormData(form);
             const data = {};
             
@@ -758,138 +673,157 @@
                 data[key] = value;
             }
             
-            this.smartSave(type, data);
-            this.showMessage(`${type} saved with smart storage!`, 'success');
+            this.saveItem(type, data);
+            this.showNotification(`${type} saved with smart storage!`, 'success');
         }
 
         // ==================== UTILITY METHODS ====================
-        getHeaders() {
-            const headers = {
-                'Content-Type': 'application/json'
-            };
-            
-            if (this.authToken) {
-                headers['Authorization'] = `Bearer ${this.authToken}`;
-            }
-            
-            return headers;
-        }
-
         handleOnline() {
             this.isOnline = true;
-            console.log('🌐 Back online!');
-            this.showMessage('Back online. Syncing data...', 'success');
-            this.autoSync();
+            console.log('🌐 Online - starting sync');
+            this.showNotification('Back online. Syncing data...', 'success');
+            this.syncQueueToServer();
         }
 
         handleOffline() {
             this.isOnline = false;
-            console.log('📴 Offline mode');
-            this.showMessage('You are offline. Data saved locally.', 'warning');
+            console.log('📴 Offline - using local storage');
+            this.showNotification('You are offline. Data saved locally.', 'warning');
         }
 
         saveQueue() {
-            localStorage.setItem('smart_storage_queue', JSON.stringify(this.syncQueue));
+            localStorage.setItem('ws_sync_queue', JSON.stringify(this.syncQueue));
         }
 
         loadQueue() {
-            const saved = localStorage.getItem('smart_storage_queue');
+            const saved = localStorage.getItem('ws_sync_queue');
             this.syncQueue = saved ? JSON.parse(saved) : [];
         }
 
-        calculateStorage() {
+        getStorageUsage() {
             let total = 0;
             for (let key in localStorage) {
-                if (key.startsWith('smart_')) {
+                if (key.startsWith('ws_')) {
                     total += localStorage[key].length * 2;
                 }
             }
             return (total / 1024).toFixed(2) + ' KB';
         }
 
-        async forceSync() {
-            this.showMessage('Force syncing all data...', 'info');
-            await this.autoSync();
+        syncNow() {
+            this.showNotification('Manual sync started...', 'info');
+            this.syncQueueToServer();
         }
 
         // ==================== PUBLIC API ====================
-        getPublicAPI() {
+        getAPI() {
             return {
-                save: (type, data) => this.smartSave(type, data),
-                fetch: (type, query) => this.smartFetch(type, query),
-                update: (type, id, data) => this.smartUpdate(type, id, data),
+                // Save methods
+                saveProduct: (data) => this.saveProduct(data),
+                saveOrder: (data) => this.saveOrder(data),
+                saveCustomer: (data) => this.saveCustomer(data),
+                saveItem: (type, data) => this.saveItem(type, data),
+                
+                // Get methods
+                getProducts: (query) => this.getProducts(query),
+                getOrders: (query) => this.getOrders(query),
+                getItems: (type, query) => this.getItems(type, query),
+                
+                // Status
                 status: () => ({
                     online: this.isOnline,
-                    queueLength: this.syncQueue.length,
-                    storageUsed: this.calculateStorage()
+                    queue: this.syncQueue.length,
+                    localProducts: this.getLocalItems('products').length,
+                    localOrders: this.getLocalItems('orders').length
                 }),
-                forceSync: () => this.forceSync(),
-                showPanel: () => this.showStatusPanel()
+                
+                // Actions
+                syncNow: () => this.syncNow(),
+                showPanel: () => this.showStatusPanel(),
+                clearLocal: () => {
+                    Object.keys(localStorage).forEach(key => {
+                        if (key.startsWith('ws_')) {
+                            localStorage.removeItem(key);
+                        }
+                    });
+                    this.showNotification('Local storage cleared', 'info');
+                    this.updateUI();
+                }
             };
         }
     }
 
     // ==================== GLOBAL SETUP ====================
     
-    // Wait for page to load
+    // Initialize when page loads
     window.addEventListener('load', () => {
-        console.log('📦 Initializing Smart Storage System...');
+        console.log('📊 Initializing Wholesale Storage for Dashboard...');
         
-        // Initialize storage manager
-        window.smartStorage = new SmartStorage();
+        // Create storage instance
+        window.wsStorage = new WholesaleStorage();
         
-        // Make API globally available
-        window.$storage = window.smartStorage.getPublicAPI();
+        // Make simplified API available
+        window.$ws = window.wsStorage.getAPI();
         
-        // Add test commands to window
-        window.testStorage = async () => {
-            console.log('🧪 Testing storage system...');
+        // Add test function
+        window.testWholesaleStorage = async () => {
+            console.log('🧪 Testing wholesale storage...');
             
-            // Test save
+            // Test product save
             const testProduct = {
-                name: "Test Product " + Date.now(),
-                price: Math.floor(Math.random() * 1000),
-                quantity: Math.floor(Math.random() * 100),
-                category: "Test"
+                name: "Test Product " + new Date().getTime(),
+                price: Math.floor(Math.random() * 1000) + 100,
+                stock: Math.floor(Math.random() * 100) + 1,
+                category: "Test Category",
+                sku: "TEST-" + Date.now()
             };
             
-            const saved = await window.$storage.save('products', testProduct);
-            console.log('Test save result:', saved);
+            const saved = await window.$ws.saveProduct(testProduct);
+            console.log('Product saved:', saved);
             
-            // Test fetch
-            const products = await window.$storage.fetch('products');
-            console.log('Test fetch result:', products.length, 'products');
+            // Test getting products
+            const products = await window.$ws.getProducts();
+            console.log('Total products:', products.length);
             
-            alert(`✅ Storage Test Complete!\nSaved: ${testProduct.name}\nTotal Products: ${products.length}`);
+            // Show status
+            const status = window.$ws.status();
+            console.log('Storage status:', status);
+            
+            alert(`✅ Wholesale Storage Test Complete!\nSaved: ${testProduct.name}\nLocal Products: ${products.length}\nOnline: ${status.online}`);
         };
         
-        // Add test button to page
+        // Add test button to dashboard
         setTimeout(() => {
-            const testBtn = document.createElement('button');
-            testBtn.textContent = '🧪 Test Storage';
-            testBtn.style.cssText = `
-                position: fixed;
-                bottom: 70px;
-                right: 20px;
-                padding: 10px 15px;
-                background: #6f42c1;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                cursor: pointer;
-                z-index: 99999;
-                font-family: Arial, sans-serif;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            `;
-            testBtn.onclick = window.testStorage;
-            document.body.appendChild(testBtn);
-        }, 1000);
+            if (!document.querySelector('#ws-test-btn')) {
+                const testBtn = document.createElement('button');
+                testBtn.id = 'ws-test-btn';
+                testBtn.textContent = 'Test Storage';
+                testBtn.style.cssText = `
+                    position: fixed;
+                    bottom: 70px;
+                    right: 20px;
+                    padding: 10px 16px;
+                    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    z-index: 9999;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    font-size: 14px;
+                    font-weight: 500;
+                    box-shadow: 0 4px 15px rgba(240, 147, 251, 0.3);
+                    transition: transform 0.2s;
+                `;
+                testBtn.onmouseenter = () => testBtn.style.transform = 'translateY(-2px)';
+                testBtn.onmouseleave = () => testBtn.style.transform = 'translateY(0)';
+                testBtn.onclick = window.testWholesaleStorage;
+                document.body.appendChild(testBtn);
+            }
+        }, 1500);
         
-        console.log('🎉 Smart Storage System Ready!');
-        console.log('Available commands:');
-        console.log('- window.smartStorage: Full access');
-        console.log('- window.$storage: Simple API');
-        console.log('- window.testStorage(): Run tests');
+        console.log('🎉 Wholesale Storage System Ready!');
+        console.log('Available: window.wsStorage (full) or window.$ws (simple)');
     });
 
 })();
