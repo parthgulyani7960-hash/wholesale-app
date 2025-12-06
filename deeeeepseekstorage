@@ -1,0 +1,895 @@
+// ====================================================
+// AUTO-DETECTING STORAGE SYSTEM FOR WHOLESALE APP
+// ====================================================
+// Save as: auto-storage.js
+// Add: <script src="auto-storage.js"></script>
+
+(function() {
+    'use strict';
+
+    console.log('🚀 Auto-Storage System Loading...');
+
+    // ==================== AUTO-DETECT YOUR API ====================
+    class APIDetector {
+        static detectEndpoints() {
+            console.log('🔍 Detecting your API endpoints...');
+            
+            // Common endpoint patterns in wholesale apps
+            const commonPatterns = {
+                products: ['/api/products', '/products', '/api/items', '/items', '/api/goods'],
+                orders: ['/api/orders', '/orders', '/api/sales', '/sales'],
+                customers: ['/api/customers', '/customers', '/api/clients'],
+                inventory: ['/api/inventory', '/inventory', '/api/stock'],
+                categories: ['/api/categories', '/categories'],
+                users: ['/api/users', '/users', '/api/auth']
+            };
+
+            // Try to find active endpoints by checking network requests
+            const detectedEndpoints = {};
+            
+            // Override fetch to detect endpoints
+            const originalFetch = window.fetch;
+            window.fetch = function(...args) {
+                const url = args[0];
+                
+                // Log API calls for detection
+                if (typeof url === 'string' && url.includes('/api/')) {
+                    console.log(`📡 Detected API call: ${url}`);
+                    
+                    // Auto-detect endpoint type
+                    for (const [type, patterns] of Object.entries(commonPatterns)) {
+                        for (const pattern of patterns) {
+                            if (url.includes(pattern)) {
+                                if (!detectedEndpoints[type]) {
+                                    detectedEndpoints[type] = url.split('?')[0]; // Remove query params
+                                    console.log(`✅ Auto-detected ${type} endpoint: ${detectedEndpoints[type]}`);
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                return originalFetch.apply(this, args);
+            };
+
+            // Restore original fetch after detection period
+            setTimeout(() => {
+                window.fetch = originalFetch;
+                console.log('✅ API detection complete');
+            }, 3000);
+
+            return detectedEndpoints;
+        }
+    }
+
+    // ==================== INTELLIGENT STORAGE MANAGER ====================
+    class SmartStorage {
+        constructor() {
+            this.endpoints = {};
+            this.syncQueue = [];
+            this.isOnline = navigator.onLine;
+            this.isInitialized = false;
+            this.authToken = null;
+            this.userId = null;
+            
+            // Auto-detect configuration
+            this.autoDetectConfig();
+            
+            this.init();
+        }
+
+        autoDetectConfig() {
+            console.log('🤖 Auto-configuring storage system...');
+            
+            // 1. Detect auth token from common locations
+            this.authToken = this.findAuthToken();
+            
+            // 2. Detect user ID
+            this.userId = localStorage.getItem('userId') || 
+                         localStorage.getItem('user_id') || 
+                         'user_' + Date.now();
+            
+            // 3. Detect API endpoints
+            this.endpoints = APIDetector.detectEndpoints();
+            
+            // 4. If no endpoints detected, use defaults based on common patterns
+            if (Object.keys(this.endpoints).length === 0) {
+                console.log('⚠️ No endpoints auto-detected, using defaults');
+                this.endpoints = {
+                    products: '/api/products',
+                    orders: '/api/orders',
+                    customers: '/api/customers',
+                    inventory: '/api/inventory'
+                };
+            }
+            
+            console.log('✅ Auto-config complete:', {
+                hasAuth: !!this.authToken,
+                userId: this.userId,
+                endpoints: this.endpoints
+            });
+        }
+
+        findAuthToken() {
+            // Check common token storage locations
+            const tokenLocations = [
+                localStorage.getItem('token'),
+                localStorage.getItem('jwt'),
+                localStorage.getItem('access_token'),
+                localStorage.getItem('auth_token'),
+                sessionStorage.getItem('token'),
+                document.cookie.match(/token=([^;]+)/)?.[1],
+                document.cookie.match(/jwt=([^;]+)/)?.[1],
+                document.cookie.match(/auth=([^;]+)/)?.[1]
+            ];
+            
+            return tokenLocations.find(t => t) || '';
+        }
+
+        init() {
+            console.log('🔧 Initializing Smart Storage...');
+            
+            // Set up online/offline detection
+            window.addEventListener('online', () => this.handleOnline());
+            window.addEventListener('offline', () => this.handleOffline());
+            
+            // Load existing queue
+            this.loadQueue();
+            
+            // Auto-sync every 20 seconds
+            setInterval(() => this.autoSync(), 20000);
+            
+            // Create UI indicators
+            this.createUI();
+            
+            // Hook into existing app events
+            this.hookIntoApp();
+            
+            this.isInitialized = true;
+            console.log('✅ Smart Storage Ready!');
+            
+            // Show welcome message
+            this.showMessage('Smart Storage System Activated!', 'success');
+        }
+
+        // ==================== SMART CRUD OPERATIONS ====================
+        async smartSave(type, data) {
+            console.log(`💾 Smart saving ${type}:`, data);
+            
+            // Generate unique ID
+            const localId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            
+            // Prepare data with metadata
+            const itemData = {
+                ...data,
+                _id: localId,
+                _type: type,
+                _createdAt: new Date().toISOString(),
+                _updatedAt: new Date().toISOString(),
+                _synced: false,
+                _local: true
+            };
+            
+            // Save locally immediately
+            this.saveLocally(type, itemData);
+            
+            // Try to save to server if online
+            if (this.isOnline) {
+                try {
+                    const serverResult = await this.saveToServer(type, data);
+                    
+                    // Update local copy with server data
+                    this.updateLocalItem(type, localId, {
+                        ...serverResult,
+                        _synced: true,
+                        _local: false,
+                        _serverId: serverResult.id || serverResult._id
+                    });
+                    
+                    this.showMessage(`${type} saved to server!`, 'success');
+                    return serverResult;
+                    
+                } catch (error) {
+                    console.log(`⚠️ Server save failed for ${type}, keeping local copy`);
+                    this.queueForSync(type, 'create', itemData);
+                    return itemData;
+                }
+            } else {
+                // Queue for later sync
+                this.queueForSync(type, 'create', itemData);
+                this.showMessage('Saved locally (offline). Will sync when online.', 'warning');
+                return itemData;
+            }
+        }
+
+        async smartFetch(type, query = {}) {
+            console.log(`🔍 Smart fetching ${type}`, query);
+            
+            // Try server first if online
+            if (this.isOnline) {
+                try {
+                    const serverData = await this.fetchFromServer(type, query);
+                    
+                    // Cache server data locally
+                    this.cacheLocally(type, serverData);
+                    
+                    // Merge with any local unsynced data
+                    const localData = this.getLocalData(type);
+                    const unsyncedLocal = localData.filter(item => item._local && !item._synced);
+                    
+                    return [...serverData, ...unsyncedLocal];
+                    
+                } catch (error) {
+                    console.log(`⚠️ Server fetch failed, using local cache for ${type}`);
+                }
+            }
+            
+            // Fallback to local data
+            return this.getLocalData(type, query);
+        }
+
+        async smartUpdate(type, id, updates) {
+            console.log(`✏️ Smart updating ${type}:${id}`, updates);
+            
+            const updateData = {
+                ...updates,
+                _updatedAt: new Date().toISOString(),
+                _synced: false
+            };
+            
+            // Update locally
+            this.updateLocalItem(type, id, updateData);
+            
+            // Try server update if online
+            if (this.isOnline) {
+                try {
+                    await this.updateOnServer(type, id, updates);
+                    this.updateLocalItem(type, id, { _synced: true });
+                    this.showMessage(`${type} updated on server!`, 'success');
+                } catch (error) {
+                    console.log(`⚠️ Server update failed, queuing for sync`);
+                    this.queueForSync(type, 'update', { id, ...updates });
+                }
+            } else {
+                this.queueForSync(type, 'update', { id, ...updates });
+                this.showMessage('Updated locally (offline)', 'warning');
+            }
+        }
+
+        // ==================== SERVER COMMUNICATION ====================
+        async saveToServer(type, data) {
+            const endpoint = this.endpoints[type];
+            if (!endpoint) {
+                throw new Error(`No endpoint configured for ${type}`);
+            }
+            
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: this.getHeaders(),
+                body: JSON.stringify(data)
+            });
+            
+            if (!response.ok) throw new Error(`Server error: ${response.status}`);
+            
+            return await response.json();
+        }
+
+        async fetchFromServer(type, query = {}) {
+            const endpoint = this.endpoints[type];
+            if (!endpoint) return [];
+            
+            let url = endpoint;
+            if (Object.keys(query).length > 0) {
+                const params = new URLSearchParams(query);
+                url += `?${params.toString()}`;
+            }
+            
+            const response = await fetch(url, {
+                headers: this.getHeaders()
+            });
+            
+            if (!response.ok) throw new Error(`Fetch error: ${response.status}`);
+            
+            return await response.json();
+        }
+
+        async updateOnServer(type, id, data) {
+            const endpoint = this.endpoints[type];
+            if (!endpoint) throw new Error(`No endpoint for ${type}`);
+            
+            // Check if it's a local ID
+            const isLocalId = id.startsWith('local_');
+            
+            if (isLocalId) {
+                // Find the server ID
+                const localData = this.getLocalData(type);
+                const item = localData.find(item => item._id === id);
+                if (item && item._serverId) {
+                    id = item._serverId;
+                } else {
+                    throw new Error('Item not yet synced to server');
+                }
+            }
+            
+            const response = await fetch(`${endpoint}/${id}`, {
+                method: 'PUT',
+                headers: this.getHeaders(),
+                body: JSON.stringify(data)
+            });
+            
+            if (!response.ok) throw new Error(`Update error: ${response.status}`);
+            
+            return await response.json();
+        }
+
+        // ==================== LOCAL STORAGE MANAGEMENT ====================
+        saveLocally(type, data) {
+            const key = `smart_${type}`;
+            let items = JSON.parse(localStorage.getItem(key) || '[]');
+            
+            // Remove if exists
+            items = items.filter(item => item._id !== data._id);
+            
+            // Add new item
+            items.push(data);
+            
+            localStorage.setItem(key, JSON.stringify(items));
+            this.updateUI();
+        }
+
+        getLocalData(type, query = {}) {
+            const key = `smart_${type}`;
+            const items = JSON.parse(localStorage.getItem(key) || '[]');
+            
+            if (Object.keys(query).length === 0) return items;
+            
+            return items.filter(item => {
+                return Object.entries(query).every(([key, value]) => {
+                    return item[key] == value;
+                });
+            });
+        }
+
+        updateLocalItem(type, id, updates) {
+            const key = `smart_${type}`;
+            let items = JSON.parse(localStorage.getItem(key) || '[]');
+            
+            items = items.map(item => 
+                item._id === id ? { ...item, ...updates } : item
+            );
+            
+            localStorage.setItem(key, JSON.stringify(items));
+            this.updateUI();
+        }
+
+        cacheLocally(type, dataArray) {
+            const key = `smart_${type}_cache`;
+            const cache = {
+                data: dataArray,
+                timestamp: Date.now()
+            };
+            localStorage.setItem(key, JSON.stringify(cache));
+        }
+
+        // ==================== SYNC QUEUE ====================
+        queueForSync(type, operation, data) {
+            const queueItem = {
+                id: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                type: type,
+                operation: operation,
+                data: data,
+                attempts: 0,
+                createdAt: new Date().toISOString()
+            };
+            
+            this.syncQueue.push(queueItem);
+            this.saveQueue();
+            this.updateUI();
+        }
+
+        async autoSync() {
+            if (!this.isOnline || this.syncQueue.length === 0) return;
+            
+            console.log(`🔄 Auto-syncing ${this.syncQueue.length} items...`);
+            
+            for (const item of [...this.syncQueue]) {
+                try {
+                    switch (item.operation) {
+                        case 'create':
+                            await this.saveToServer(item.type, item.data);
+                            break;
+                        case 'update':
+                            await this.updateOnServer(item.type, item.data.id, item.data);
+                            break;
+                    }
+                    
+                    // Remove from queue on success
+                    this.syncQueue = this.syncQueue.filter(q => q.id !== item.id);
+                    
+                    // Mark as synced in local storage
+                    if (item.data._id) {
+                        this.updateLocalItem(item.type, item.data._id, { _synced: true, _local: false });
+                    }
+                    
+                } catch (error) {
+                    console.log(`⚠️ Sync failed for ${item.type}:`, error);
+                    item.attempts++;
+                    
+                    // Remove after too many attempts
+                    if (item.attempts >= 3) {
+                        this.syncQueue = this.syncQueue.filter(q => q.id !== item.id);
+                        console.log(`❌ Giving up on ${item.type} after 3 attempts`);
+                    }
+                }
+            }
+            
+            this.saveQueue();
+            this.updateUI();
+            
+            if (this.syncQueue.length === 0) {
+                this.showMessage('All data synced!', 'success');
+            }
+        }
+
+        // ==================== UI COMPONENTS ====================
+        createUI() {
+            // Create status indicator
+            const indicator = document.createElement('div');
+            indicator.id = 'smart-storage-indicator';
+            indicator.innerHTML = `
+                <div style="
+                    position: fixed;
+                    bottom: 20px;
+                    right: 20px;
+                    padding: 10px 15px;
+                    background: #28a745;
+                    color: white;
+                    border-radius: 20px;
+                    font-size: 14px;
+                    font-family: Arial, sans-serif;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                    z-index: 99999;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    transition: all 0.3s;
+                ">
+                    <span id="smart-status-icon">✓</span>
+                    <span id="smart-status-text">Synced</span>
+                    <span id="smart-queue-count" style="
+                        background: rgba(255,255,255,0.2);
+                        padding: 2px 8px;
+                        border-radius: 10px;
+                        font-size: 12px;
+                        display: none;
+                    ">0</span>
+                </div>
+            `;
+            
+            document.body.appendChild(indicator);
+            
+            // Add notification container
+            const notificationContainer = document.createElement('div');
+            notificationContainer.id = 'smart-notifications';
+            notificationContainer.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 99998;
+                max-width: 350px;
+            `;
+            document.body.appendChild(notificationContainer);
+            
+            // Update UI immediately
+            this.updateUI();
+        }
+
+        updateUI() {
+            const indicator = document.getElementById('smart-storage-indicator');
+            if (!indicator) return;
+            
+            const icon = document.getElementById('smart-status-icon');
+            const text = document.getElementById('smart-status-text');
+            const count = document.getElementById('smart-queue-count');
+            
+            if (!this.isOnline) {
+                indicator.style.background = '#dc3545';
+                icon.textContent = '⚠';
+                text.textContent = 'Offline';
+                count.style.display = 'none';
+            } else if (this.syncQueue.length > 0) {
+                indicator.style.background = '#ffc107';
+                icon.textContent = '🔄';
+                text.textContent = 'Syncing';
+                count.textContent = this.syncQueue.length;
+                count.style.display = 'inline';
+            } else {
+                indicator.style.background = '#28a745';
+                icon.textContent = '✓';
+                text.textContent = 'Synced';
+                count.style.display = 'none';
+            }
+            
+            // Add click handler
+            indicator.onclick = () => this.showStatusPanel();
+        }
+
+        showMessage(message, type = 'info') {
+            const container = document.getElementById('smart-notifications');
+            if (!container) return;
+            
+            const colors = {
+                success: '#d4edda',
+                warning: '#fff3cd',
+                error: '#f8d7da',
+                info: '#d1ecf1'
+            };
+            
+            const textColors = {
+                success: '#155724',
+                warning: '#856404',
+                error: '#721c24',
+                info: '#0c5460'
+            };
+            
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                background: ${colors[type] || colors.info};
+                color: ${textColors[type] || textColors.info};
+                padding: 12px 20px;
+                margin-bottom: 10px;
+                border-radius: 8px;
+                border-left: 4px solid ${type === 'success' ? '#28a745' : 
+                                     type === 'warning' ? '#ffc107' : 
+                                     type === 'error' ? '#dc3545' : '#17a2b8'};
+                animation: slideIn 0.3s ease;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            `;
+            notification.textContent = message;
+            
+            container.appendChild(notification);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.style.opacity = '0';
+                    notification.style.transform = 'translateX(100px)';
+                    setTimeout(() => notification.remove(), 300);
+                }
+            }, 5000);
+            
+            // Add CSS animation if not exists
+            if (!document.querySelector('#smart-storage-animations')) {
+                const style = document.createElement('style');
+                style.id = 'smart-storage-animations';
+                style.textContent = `
+                    @keyframes slideIn {
+                        from {
+                            opacity: 0;
+                            transform: translateX(100px);
+                        }
+                        to {
+                            opacity: 1;
+                            transform: translateX(0);
+                        }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        }
+
+        showStatusPanel() {
+            const status = {
+                online: this.isOnline,
+                queue: this.syncQueue.length,
+                storage: this.calculateStorage(),
+                endpoints: Object.keys(this.endpoints).length
+            };
+            
+            const panel = document.createElement('div');
+            panel.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                padding: 25px;
+                border-radius: 10px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                z-index: 100000;
+                min-width: 300px;
+                font-family: Arial, sans-serif;
+            `;
+            
+            panel.innerHTML = `
+                <h3 style="margin-top: 0; color: #333;">📦 Smart Storage Status</h3>
+                <div style="margin: 15px 0;">
+                    <div style="display: flex; justify-content: space-between; margin: 8px 0;">
+                        <span>Status:</span>
+                        <span style="color: ${status.online ? '#28a745' : '#dc3545'}; font-weight: bold;">
+                            ${status.online ? 'Online ✓' : 'Offline ⚠'}
+                        </span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin: 8px 0;">
+                        <span>Pending Sync:</span>
+                        <span style="color: ${status.queue > 0 ? '#ffc107' : '#28a745'}; font-weight: bold;">
+                            ${status.queue} items
+                        </span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin: 8px 0;">
+                        <span>Storage Used:</span>
+                        <span>${status.storage}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin: 8px 0;">
+                        <span>API Endpoints:</span>
+                        <span>${status.endpoints} detected</span>
+                    </div>
+                </div>
+                <div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
+                    <button onclick="window.smartStorage.forceSync()" style="
+                        padding: 10px 20px;
+                        background: #007bff;
+                        color: white;
+                        border: none;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        margin-right: 10px;
+                    ">🔄 Force Sync</button>
+                    <button onclick="this.parentNode.parentNode.remove()" style="
+                        padding: 10px 20px;
+                        background: #6c757d;
+                        color: white;
+                        border: none;
+                        border-radius: 5px;
+                        cursor: pointer;
+                    ">Close</button>
+                </div>
+            `;
+            
+            document.body.appendChild(panel);
+            
+            // Close on outside click
+            panel.onclick = (e) => e.stopPropagation();
+            document.onclick = () => panel.remove();
+        }
+
+        // ==================== INTEGRATION HOOKS ====================
+        hookIntoApp() {
+            console.log('🔗 Hooking into your app...');
+            
+            // Hook into common wholesale app patterns
+            
+            // 1. Intercept form submissions
+            const originalSubmit = HTMLFormElement.prototype.submit;
+            HTMLFormElement.prototype.submit = function() {
+                console.log('📝 Form submission detected');
+                // Your custom logic here
+                return originalSubmit.apply(this, arguments);
+            };
+            
+            // 2. Listen for custom events
+            document.addEventListener('productSaved', (e) => {
+                console.log('🎯 Product saved event detected:', e.detail);
+                this.smartSave('products', e.detail);
+            });
+            
+            document.addEventListener('orderCreated', (e) => {
+                console.log('🎯 Order created event detected:', e.detail);
+                this.smartSave('orders', e.detail);
+            });
+            
+            // 3. Override common save functions if they exist
+            this.overrideGlobalFunctions();
+            
+            // 4. Add storage buttons to common UI elements
+            this.addStorageButtons();
+        }
+
+        overrideGlobalFunctions() {
+            // Override common wholesale app functions
+            const overrides = ['saveProduct', 'createOrder', 'addCustomer', 'updateInventory'];
+            
+            overrides.forEach(funcName => {
+                if (window[funcName]) {
+                    const original = window[funcName];
+                    window[funcName] = async (...args) => {
+                        console.log(`🔄 Intercepted ${funcName} call`);
+                        try {
+                            // Call original function
+                            const result = await original.apply(this, args);
+                            
+                            // Also save to smart storage
+                            const type = funcName.replace('save', '')
+                                                .replace('create', '')
+                                                .replace('add', '')
+                                                .replace('update', '')
+                                                .toLowerCase() + 's';
+                            if (this.endpoints[type]) {
+                                this.smartSave(type, args[0]);
+                            }
+                            
+                            return result;
+                        } catch (error) {
+                            console.error(`Error in ${funcName}:`, error);
+                            throw error;
+                        }
+                    };
+                    console.log(`✅ Hooked into ${funcName}`);
+                }
+            });
+        }
+
+        addStorageButtons() {
+            // Add smart buttons to common locations
+            
+            // Look for product forms
+            setTimeout(() => {
+                const productForms = document.querySelectorAll('form, [class*="product"], [id*="product"]');
+                productForms.forEach(form => {
+                    if (!form.querySelector('.smart-save-btn')) {
+                        const btn = document.createElement('button');
+                        btn.className = 'smart-save-btn';
+                        btn.textContent = '💾 Smart Save';
+                        btn.style.cssText = `
+                            margin-top: 10px;
+                            padding: 8px 15px;
+                            background: #28a745;
+                            color: white;
+                            border: none;
+                            border-radius: 5px;
+                            cursor: pointer;
+                        `;
+                        btn.onclick = (e) => {
+                            e.preventDefault();
+                            this.smartSaveFormData(form, 'products');
+                        };
+                        form.appendChild(btn);
+                    }
+                });
+            }, 2000);
+        }
+
+        smartSaveFormData(form, type) {
+            const formData = new FormData(form);
+            const data = {};
+            
+            for (const [key, value] of formData.entries()) {
+                data[key] = value;
+            }
+            
+            this.smartSave(type, data);
+            this.showMessage(`${type} saved with smart storage!`, 'success');
+        }
+
+        // ==================== UTILITY METHODS ====================
+        getHeaders() {
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            
+            if (this.authToken) {
+                headers['Authorization'] = `Bearer ${this.authToken}`;
+            }
+            
+            return headers;
+        }
+
+        handleOnline() {
+            this.isOnline = true;
+            console.log('🌐 Back online!');
+            this.showMessage('Back online. Syncing data...', 'success');
+            this.autoSync();
+        }
+
+        handleOffline() {
+            this.isOnline = false;
+            console.log('📴 Offline mode');
+            this.showMessage('You are offline. Data saved locally.', 'warning');
+        }
+
+        saveQueue() {
+            localStorage.setItem('smart_storage_queue', JSON.stringify(this.syncQueue));
+        }
+
+        loadQueue() {
+            const saved = localStorage.getItem('smart_storage_queue');
+            this.syncQueue = saved ? JSON.parse(saved) : [];
+        }
+
+        calculateStorage() {
+            let total = 0;
+            for (let key in localStorage) {
+                if (key.startsWith('smart_')) {
+                    total += localStorage[key].length * 2;
+                }
+            }
+            return (total / 1024).toFixed(2) + ' KB';
+        }
+
+        async forceSync() {
+            this.showMessage('Force syncing all data...', 'info');
+            await this.autoSync();
+        }
+
+        // ==================== PUBLIC API ====================
+        getPublicAPI() {
+            return {
+                save: (type, data) => this.smartSave(type, data),
+                fetch: (type, query) => this.smartFetch(type, query),
+                update: (type, id, data) => this.smartUpdate(type, id, data),
+                status: () => ({
+                    online: this.isOnline,
+                    queueLength: this.syncQueue.length,
+                    storageUsed: this.calculateStorage()
+                }),
+                forceSync: () => this.forceSync(),
+                showPanel: () => this.showStatusPanel()
+            };
+        }
+    }
+
+    // ==================== GLOBAL SETUP ====================
+    
+    // Wait for page to load
+    window.addEventListener('load', () => {
+        console.log('📦 Initializing Smart Storage System...');
+        
+        // Initialize storage manager
+        window.smartStorage = new SmartStorage();
+        
+        // Make API globally available
+        window.$storage = window.smartStorage.getPublicAPI();
+        
+        // Add test commands to window
+        window.testStorage = async () => {
+            console.log('🧪 Testing storage system...');
+            
+            // Test save
+            const testProduct = {
+                name: "Test Product " + Date.now(),
+                price: Math.floor(Math.random() * 1000),
+                quantity: Math.floor(Math.random() * 100),
+                category: "Test"
+            };
+            
+            const saved = await window.$storage.save('products', testProduct);
+            console.log('Test save result:', saved);
+            
+            // Test fetch
+            const products = await window.$storage.fetch('products');
+            console.log('Test fetch result:', products.length, 'products');
+            
+            alert(`✅ Storage Test Complete!\nSaved: ${testProduct.name}\nTotal Products: ${products.length}`);
+        };
+        
+        // Add test button to page
+        setTimeout(() => {
+            const testBtn = document.createElement('button');
+            testBtn.textContent = '🧪 Test Storage';
+            testBtn.style.cssText = `
+                position: fixed;
+                bottom: 70px;
+                right: 20px;
+                padding: 10px 15px;
+                background: #6f42c1;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                z-index: 99999;
+                font-family: Arial, sans-serif;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            `;
+            testBtn.onclick = window.testStorage;
+            document.body.appendChild(testBtn);
+        }, 1000);
+        
+        console.log('🎉 Smart Storage System Ready!');
+        console.log('Available commands:');
+        console.log('- window.smartStorage: Full access');
+        console.log('- window.$storage: Simple API');
+        console.log('- window.testStorage(): Run tests');
+    });
+
+})();
