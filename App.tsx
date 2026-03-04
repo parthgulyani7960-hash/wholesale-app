@@ -1,6 +1,7 @@
 
 
 import React, { useState, useCallback, useEffect, useMemo, ReactNode } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { AppProvider, View, useAppContext } from './context/AppContext';
 import HomeView from './views/HomeView';
 import ProductsView from './views/ProductsView';
@@ -557,6 +558,7 @@ const AppContent: React.FC = () => {
                 </div>
             )}
              <NotificationPermissionModal isOpen={showNotificationModal} onClose={handlePermissionRequest} />
+            <Analytics />
               <style>{`
                 @keyframes fadeInDown { from { opacity: 0; transform: translate(-50%, -20px); } to { opacity: 1; transform: translate(-50%, 0); } }
                 .animate-fade-in-down { animation: fadeInDown 0.3s ease-out forwards; }
